@@ -1,27 +1,18 @@
 {
   "name": "eth-alert",
   "version": "1.0.3",
-  "description": "slack alerts for price of Ethereum on GDAX exchange",
+  "description": "swingbot",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/waymobetta/eth-alert.git"
   },
   "keywords": [
     "ethereum",
     "gdax",
     "cryptocurrency",
-    "slack"
+    "bot"
   ],
-  "author": "waymobetta",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/waymobetta/eth-alert/issues"
-  },
-  "homepage": "https://github.com/waymobetta/eth-alert#readme",
+  "author": "eperry",
   "dependencies": {
     "commander": "^2.11.0",
     "gdax": "^0.4.2"
