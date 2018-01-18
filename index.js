@@ -3,24 +3,33 @@ var program = require('commander');
 var blessed = require('blessed');
 var numeral = require('numeral');
 var gdax = require('gdax');
-websocket = new gdax.WebsocketClient(['ETH-USD',"BTC-USD","ETH-BTC"]);
+var gdaxconfig = require('./gdax.config')
+var counter={ total:0 };
+coins=['ETH-USD',"BTC-USD","ETH-BTC"]
+var gdaxAccounts={};
+const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
+
+authedClient.getAccounts((error,response,data)=>{
+	debugwindow.insertBottom(JSON.stringify(data))
+	data.forEach( (d) => {
+		gdaxAccounts[d.currency]=d;
+	})
+});
+
+websocket = new gdax.WebsocketClient(coins);
 
 websocket.on('error', err => { /* handle error */ });
 websocket.on('close', () => { /* ... */ });
 
-var coins = {};
 function myRound(number, precision) {
     var factor = Math.pow(10, precision);
     var tempNumber = number * factor;
     var roundedTempNumber = Math.round(tempNumber);
     return roundedTempNumber / factor;
 };
-coins['ETH-USD'] = new Gdax.PublicClient('ETH-USD');		// public API might cap at 100 requests/day
-coins['BTC-USD'] = new Gdax.PublicClient('BTC-USD');		// public API might cap at 100 requests/day
-coins['ETH-BTC'] = new Gdax.PublicClient('ETH-BTC');		// public API might cap at 100 requests/day
 coinbox = {};
 tradeStats = {
-	direction: 0,
+	direction: {},
 	coins:{},
 	lastCoins: {},
 };	
@@ -48,7 +57,7 @@ screen.title = 'my window title';
 
 // Create a box perfectly centered horizontally and vertically.
 var toppos=0;
-Object.keys(coins).forEach( function (coin){
+coins.forEach( function (coin){
 	tp = toppos+"%"
 	coinbox[coin]={}
 	coinbox[coin].buy = blessed.box({
@@ -98,7 +107,7 @@ var tradewindow = blessed.box({
 	  //top: 'center',
 	  //left: 'center',
 	  //width: '30%',
-	  height: '100%',
+	  height: '50%',
 	  scrollable: true,
 	  content: '',
 	  tags: true,
@@ -114,6 +123,28 @@ var tradewindow = blessed.box({
 	  }
 	});
 	screen.append(tradewindow);
+var debugwindow = blessed.box({
+	  left: '60%',
+	  top: '50%',
+	  //left: 'center',
+	  //width: '30%',
+	  height: '50%',
+	  scrollable: true,
+	  alwaysScroll:true,
+	  content: '',
+	  tags: true,
+	  border: {
+	    type: 'line'
+	  },
+	  style: {
+	    fg: 'white',
+	    //bg: 'black',
+	    border: {
+	      fg: '#f0f0f0'
+	    },
+	  }
+	});
+	screen.append(debugwindow);
 
 
 // Quit on Escape, q, or Control-C.
@@ -124,6 +155,9 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 //coinbox['ETH-BTC'].focus();
 // Focus our element.
 websocket.on('message', data => {
+	counter.total++;
+	if (counter[data.type] === undefined ) counter[data.type]=0;
+	counter[data.type]+=1
         /* work with data */
         //var columns = columnify(data, {columns: Object.keys(data),   } )
         if ( data.type == 'done' 
@@ -145,6 +179,7 @@ websocket.on('message', data => {
 		window.setContent(data.product_id)
 		Object.keys(data).forEach( function (d){
 			window.insertBottom(d+": "+data[d])
+			tradeStats.direction[data.product_id]; 
 		});
 		if ( tradeStats.coins[data.product_id] === undefined ) {tradeStats.coins[data.product_id]={};}
 		tradeStats.coins[data.product_id][data.side]=data;
@@ -153,7 +188,11 @@ websocket.on('message', data => {
 
 // Render the screen.
 setInterval(function (){ 
-	tradewindow.setContent("-Trades-"+Date.now());
+	tradewindow.setContent("Trades messages: ");
+	Object.keys(counter).forEach( function (d){
+		tradewindow.insertBottom("Trades messages: "+d+" = "+counter[d]);
+	})
+	
 	//tradewindow.insertBottom(JSON.stringify(tradeStats.coins,null,2))
 	//tradewindow.insertBottom("----------")
 	try{
@@ -163,9 +202,19 @@ setInterval(function (){
 		tradewindow.insertBottom("ETH-USD-BTC sell Calc  : "+ tradeStats.coins['ETH-USD']['sell'].price/tradeStats.coins['BTC-USD']['sell'].price);
 		tradeStats.lastCoins=tradeStats.coins;	
 	} catch (e) {
-		tradewindow.insertBottom(e.message);
-		tradewindow.insertBottom(e.stack);
+		debugwindow.insertBottom(e.message);
+		debugwindow.insertBottom(e.stack);
 	}
+	try{
+		debugwindow.insertBottom("-------"+counter.total+"------")
+		//debugwindow.insertBottom(JSON.stringify(gdaxAccounts));
+	} catch (e) {
+		debugwindow.insertBottom(e.message);
+		debugwindow.insertBottom(e.stack);
+
+	}
+	debugwindow.setScrollPerc(100);
 	screen.render(); 
 },110);
 screen.render();
+
