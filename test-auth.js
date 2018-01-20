@@ -9,4 +9,10 @@ authedClient.getAccounts((error,response,data)=>{
 	console.log(data)
 
 });
+authedClient.getOrders( (error,response,data)=>{
+	if (error)	console.log(error)
+	//console.log(response)
+	console.log(data)
+
+});
 

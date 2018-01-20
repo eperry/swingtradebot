@@ -15,7 +15,7 @@
   "author": "eperry",
   "dependencies": {
     "commander": "^2.11.0",
-    "gdax": "^0.4.2",
+    "gdax": "github:coinbase/gdax-node",
     "numeral": "^2.0.6"
   }
 }

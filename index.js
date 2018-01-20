@@ -3,18 +3,19 @@ var program = require('commander');
 var blessed = require('blessed');
 var numeral = require('numeral');
 var gdax = require('gdax');
+var fs   = require('fs');
 var gdaxconfig = require('./gdax.config')
 var counter={ total:0 };
-coins=['ETH-USD',"BTC-USD","ETH-BTC"]
 var gdaxAccounts={};
-const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
-
-authedClient.getAccounts((error,response,data)=>{
-	debugwindow.insertBottom(JSON.stringify(data))
-	data.forEach( (d) => {
-		gdaxAccounts[d.currency]=d;
-	})
-});
+coins=['ETH-USD',"BTC-USD","ETH-BTC"]
+var tradeStats = {
+			direction: {},
+			coins:{},
+			lastCoins: {},
+	};	
+if ( fs.existsSync('./cache/tradeStats.coins') ){
+	tradeStats.coins = JSON.parse(fs.readFileSync('./cache/tradeStats.coins','utf-8'))
+}
 
 websocket = new gdax.WebsocketClient(coins);
 
@@ -28,11 +29,6 @@ function myRound(number, precision) {
     return roundedTempNumber / factor;
 };
 coinbox = {};
-tradeStats = {
-	direction: {},
-	coins:{},
-	lastCoins: {},
-};	
 
 program
 	.version('0.0.1')
@@ -123,7 +119,7 @@ var tradewindow = blessed.box({
 	  }
 	});
 	screen.append(tradewindow);
-var debugwindow = blessed.box({
+var orderwindow = blessed.Log({
 	  left: '60%',
 	  top: '50%',
 	  //left: 'center',
@@ -144,7 +140,7 @@ var debugwindow = blessed.box({
 	    },
 	  }
 	});
-	screen.append(debugwindow);
+	screen.append(orderwindow);
 
 
 // Quit on Escape, q, or Control-C.
@@ -160,6 +156,30 @@ websocket.on('message', data => {
 	counter[data.type]+=1
         /* work with data */
         //var columns = columnify(data, {columns: Object.keys(data),   } )
+        if ( data.type == 'match' 
+	  && data.price
+	  && data.size	
+	  ){
+		/***************************
+		{
+		 "type": "match",
+		 "trade_id": 26710410,
+		 "maker_order_id": "46109fbc-cdde-4145-9e0f-9812119491c1",
+		 "taker_order_id": "d14fcc6d-82a9-4d27-a964-0990440662ae",
+		 "side": "sell",
+		 "size": "0.72500000",
+		 "price": "1067.30000000",
+		 "product_id": "ETH-USD",
+		 "sequence": 2114249390,
+		 "time": "2018-01-20T03:18:36.087000Z"
+		}
+		****************************/
+		if ( tradeStats.direction[data.product_id] === undefined ) {tradeStats.direction[data.product_id]=0;}
+		if ( data.side === 'sell' )
+			tradeStats.direction[data.product_id]+=parseFloat(data.size);
+		else
+			tradeStats.direction[data.product_id]-=parseFloat(data.size);
+        }
         if ( data.type == 'done' 
 	  && data.price
 	  && data.reason != 'canceled'){
@@ -186,9 +206,15 @@ websocket.on('message', data => {
         }
 });
 
+setInterval(function (){ 
+	fs.writeFileSync('./cache/tradeStats.coins',JSON.stringify(tradeStats.coins,null,2),'utf-8')
+},10000);
 // Render the screen.
 setInterval(function (){ 
 	tradewindow.setContent("Trades messages: ");
+	Object.keys(tradeStats.direction).forEach( function (d){
+		tradewindow.insertBottom("Trades Direction: "+d+" = "+tradeStats.direction[d]);
+	})
 	Object.keys(counter).forEach( function (d){
 		tradewindow.insertBottom("Trades messages: "+d+" = "+counter[d]);
 	})
@@ -202,19 +228,37 @@ setInterval(function (){
 		tradewindow.insertBottom("ETH-USD-BTC sell Calc  : "+ tradeStats.coins['ETH-USD']['sell'].price/tradeStats.coins['BTC-USD']['sell'].price);
 		tradeStats.lastCoins=tradeStats.coins;	
 	} catch (e) {
-		debugwindow.insertBottom(e.message);
-		debugwindow.insertBottom(e.stack);
 	}
-	try{
-		debugwindow.insertBottom("-------"+counter.total+"------")
-		//debugwindow.insertBottom(JSON.stringify(gdaxAccounts));
-	} catch (e) {
-		debugwindow.insertBottom(e.message);
-		debugwindow.insertBottom(e.stack);
-
-	}
-	debugwindow.setScrollPerc(100);
 	screen.render(); 
 },110);
+/*****/
+setInterval(function (){ 
+	var gdaxconfig = require('./gdax.config')
+	//orderwindow.insertBottom(JSON.stringify(gdaxconfig,null,1));
+	const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
+	//orderwindow.insertBottom(JSON.stringify(authedClient,null,1));
+	/*******************
+	authedClient.getAccounts((error,response,data)=>{
+		if (error)      orderwindow.insertBottom(JSON.stringify(error,null,1));
+		for (i=0;i< data.length;i++){
+			Object.keys(data[i]).forEach((d)=>{
+				orderwindow.insertBottom(d+": "+data[i][d]);
+			})
+		}
+
+	});
+	*******************/
+	authedClient.getOrders( (error,response,data)=>{
+		if (error)      orderwindow.insertBottom(JSON.stringify(error,null,1));
+		for (i=0;i< data.length;i++){
+			//orderwindow.insertBottom(JSON.stringify(data[i],null,1));
+			Object.keys(data[i]).forEach((d)=>{
+				orderwindow.insertBottom(d+": "+data[i][d]);
+			})
+		}
+
+	});
+},10000);
+/******/
 screen.render();
 
