@@ -1,4 +1,5 @@
 var Gdax = require('gdax');
+var gdaxConfig = require('./gdax.config')
 var program = require('commander');
 var blessed = require('blessed');
 var numeral = require('numeral');
@@ -9,9 +10,9 @@ function myRound(number, precision) {
     var roundedTempNumber = Math.round(tempNumber);
     return roundedTempNumber / factor;
 };
-coins['ETH-USD'] = new Gdax.PublicClient('ETH-USD');		// public API might cap at 100 requests/day
-coins['BTC-USD'] = new Gdax.PublicClient('BTC-USD');		// public API might cap at 100 requests/day
-coins['ETH-BTC'] = new Gdax.PublicClient('ETH-BTC');		// public API might cap at 100 requests/day
+coins['ETH-USD'] = new Gdax.PublicClient(gdaxConfig.apiURI);		// public API might cap at 100 requests/day
+//coins['BTC-USD'] = new Gdax.PublicClient('BTC-USD');		// public API might cap at 100 requests/day
+//coins['ETH-BTC'] = new Gdax.PublicClient('ETH-BTC');		// public API might cap at 100 requests/day
 coinbox = {};
 tradeStats = {
 	direction: 0,
@@ -108,7 +109,7 @@ ticker = function(err, response, data) {
 // Render the screen.
 setInterval(function (){ 
 	Object.keys(coins).forEach(function (coin){
-		coins[coin].getProductTicker(ticker.bind({ 'coin': coin}));
+		coins[coin].getProductTicker(coin,ticker.bind({ 'coin':coin}));
 	})
 	tradewindow.setContent("-Trades-"+Date.now());
 	try{

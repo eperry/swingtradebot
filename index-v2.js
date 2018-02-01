@@ -17,7 +17,7 @@ if ( fs.existsSync('./cache/tradeStats.coins') ){
 	tradeStats.coins = JSON.parse(fs.readFileSync('./cache/tradeStats.coins','utf-8'))
 }
 
-websocket = new gdax.WebsocketClient(coins);
+websocket = new gdax.WebsocketClient(coins,"wss://ws-feed.gdax.com",null,{ 'channels': ["full","level2"]});
 
 websocket.on('error', err => { /* handle error */ });
 websocket.on('close', () => { /* ... */ });
@@ -249,8 +249,9 @@ setInterval(function (){
 	});
 	*******************/
 	authedClient.getOrders( (error,response,data)=>{
-		if (error)      orderwindow.insertBottom(JSON.stringify(error,null,1));
-		for (i=0;i< data.length;i++){
+		if (error )      orderwindow.insertBottom(JSON.stringify(error,null,1)); 
+		else
+		for (i=0; i < data.length;i++){
 			//orderwindow.insertBottom(JSON.stringify(data[i],null,1));
 			Object.keys(data[i]).forEach((d)=>{
 				orderwindow.insertBottom(d+": "+data[i][d]);

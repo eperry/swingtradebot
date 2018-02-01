@@ -10,14 +10,17 @@ var gdaxAccounts={};
 coins=['ETH-USD',"BTC-USD","ETH-BTC"]
 var tradeStats = {
 			direction: {},
+			tmpdirection: {},
 			coins:{},
 			lastCoins: {},
+			lastMatch: {}
 	};	
 if ( fs.existsSync('./cache/tradeStats.coins') ){
 	tradeStats.coins = JSON.parse(fs.readFileSync('./cache/tradeStats.coins','utf-8'))
 }
 
-websocket = new gdax.WebsocketClient(coins);
+websocket = new gdax.WebsocketClient(coins,"wss://ws-feed.gdax.com",null,{ 'channels': [ "full" ]});
+//websocket = new gdax.WebsocketClient(coins,"wss://ws-feed.gdax.com",null,{ 'channels': ["full","level2"]});
 
 websocket.on('error', err => { /* handle error */ });
 websocket.on('close', () => { /* ... */ });
@@ -103,7 +106,7 @@ var tradewindow = blessed.box({
 	  //top: 'center',
 	  //left: 'center',
 	  //width: '30%',
-	  height: '50%',
+	  height: '40%',
 	  scrollable: true,
 	  content: '',
 	  tags: true,
@@ -121,10 +124,10 @@ var tradewindow = blessed.box({
 	screen.append(tradewindow);
 var orderwindow = blessed.Log({
 	  left: '60%',
-	  top: '50%',
+	  top: '40%',
 	  //left: 'center',
 	  //width: '30%',
-	  height: '50%',
+	  height: '60%',
 	  scrollable: true,
 	  alwaysScroll:true,
 	  content: '',
@@ -152,9 +155,17 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 // Focus our element.
 websocket.on('message', data => {
 	counter.total++;
-	if (counter[data.type] === undefined ) counter[data.type]=0;
-	counter[data.type]+=1
-        /* work with data */
+	if (counter[data.type] === undefined ) counter[data.type]={};
+	if (counter[data.type]['total'] === undefined ) counter[data.type]['total']=0;
+	if ( data.reason !== undefined )
+		if ( counter[data.type][data.reason] === undefined ) counter[data.type][data.reason]=0;
+		else counter[data.type][data.reason]+=1
+	counter[data.type]['total']+=1
+	if ( (data.type === 'open' || data.type === 'done') && data.side !== undefined ) {
+		if (counter[data.type][data.side] == undefined ) counter[data.type][data.side]=0;
+		counter[data.type][data.side]++;
+	}
+	/* work with data */
         //var columns = columnify(data, {columns: Object.keys(data),   } )
         if ( data.type == 'match' 
 	  && data.price
@@ -174,15 +185,20 @@ websocket.on('message', data => {
 		 "time": "2018-01-20T03:18:36.087000Z"
 		}
 		****************************/
-		if ( tradeStats.direction[data.product_id] === undefined ) {tradeStats.direction[data.product_id]=0;}
-		if ( data.side === 'sell' )
-			tradeStats.direction[data.product_id]+=parseFloat(data.size);
-		else
+		if ( tradeStats.coins[data.product_id] === undefined ) tradeStats.coins[data.product_id]={};
+		tradeStats.coins[data.product_id][data.side]=data;
+		tradeStats.lastmatch=data;
+		if ( tradeStats.direction[data.product_id] === undefined ) tradeStats.direction[data.product_id]=0;
+		if ( data.side === 'sell' ){
 			tradeStats.direction[data.product_id]-=parseFloat(data.size);
+		}else{
+			tradeStats.direction[data.product_id]+=parseFloat(data.size);
+		}
+		//tradeStats.direction[data.product_id]/=2
         }
-        if ( data.type == 'done' 
+        if ( data.type === 'open'  
 	  && data.price
-	  && data.reason != 'canceled'){
+	  ){
 		/*{
 		 "type": "done",
 		 "side": "sell",
@@ -201,9 +217,24 @@ websocket.on('message', data => {
 			window.insertBottom(d+": "+data[d])
 			tradeStats.direction[data.product_id]; 
 		});
-		if ( tradeStats.coins[data.product_id] === undefined ) {tradeStats.coins[data.product_id]={};}
-		tradeStats.coins[data.product_id][data.side]=data;
-        }
+		if ( data.remaining_size !== undefined ) {
+			if ( tradeStats.tmpdirection[data.product_id] === undefined ) {tradeStats.tmpdirection[data.product_id]=0;}
+			if ( data.side === 'sell' ){
+				tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
+			}else{
+				tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
+			}
+		}
+	}
+	if ( data.type === "done" && data.reason === 'canceled'  ){
+		if ( data.remaining_size !== undefined ) return;
+		if ( tradeStats.tmpdirection[data.product_id] === undefined ) { tradeStats.tmpdirection[data.product_id]=0;}
+		if ( data.side === 'sell' ){
+			tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
+		}else{
+			tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
+		}
+	}
 });
 
 setInterval(function (){ 
@@ -215,17 +246,19 @@ setInterval(function (){
 	Object.keys(tradeStats.direction).forEach( function (d){
 		tradewindow.insertBottom("Trades Direction: "+d+" = "+tradeStats.direction[d]);
 	})
-	Object.keys(counter).forEach( function (d){
-		tradewindow.insertBottom("Trades messages: "+d+" = "+counter[d]);
+	tradewindow.insertBottom("-------------------------");
+	Object.keys(tradeStats.tmpdirection).forEach( function (d){
+		tradewindow.insertBottom("Trades Tmp Direction: "+d+" = "+tradeStats.tmpdirection[d]);
 	})
 	
 	//tradewindow.insertBottom(JSON.stringify(tradeStats.coins,null,2))
 	//tradewindow.insertBottom("----------")
 	try{
-		tradewindow.insertBottom("ETH-BTC buy  Ticker: "+ tradeStats.coins['ETH-BTC']['buy'].price);
-		tradewindow.insertBottom("ETH-BTC sell Ticker: "+ tradeStats.coins['ETH-BTC']['sell'].price);
+		tradewindow.insertBottom("ETH-BTC buy  Ticker:     "+ tradeStats.coins['ETH-BTC']['buy'].price);
 		tradewindow.insertBottom("ETH-USD-BTC buy  Calc  : "+ tradeStats.coins['ETH-USD']['buy'].price/tradeStats.coins['BTC-USD']['buy'].price);
+		tradewindow.insertBottom("ETH-BTC sell Ticker:     "+ tradeStats.coins['ETH-BTC']['sell'].price);
 		tradewindow.insertBottom("ETH-USD-BTC sell Calc  : "+ tradeStats.coins['ETH-USD']['sell'].price/tradeStats.coins['BTC-USD']['sell'].price);
+//		tradewindow.insertBottom("ETH-BTC : Last Match"+ JSON.stringify(tradeStats.lastmatch,null,2))
 		tradeStats.lastCoins=tradeStats.coins;	
 	} catch (e) {
 	}
@@ -236,6 +269,13 @@ setInterval(function (){
 	var gdaxconfig = require('./gdax.config')
 	//orderwindow.insertBottom(JSON.stringify(gdaxconfig,null,1));
 	const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
+	orderwindow.setContent("");
+	Object.keys(counter).forEach( function (d){
+		orderwindow.insertBottom("Trades message types: "+d );
+		Object.keys(counter[d]).forEach( function (m){
+			orderwindow.insertBottom("                               "+m+" = "+counter[d][m]);
+		})
+	})
 	//orderwindow.insertBottom(JSON.stringify(authedClient,null,1));
 	/*******************
 	authedClient.getAccounts((error,response,data)=>{
@@ -248,9 +288,11 @@ setInterval(function (){
 
 	});
 	*******************/
+	/*
 	authedClient.getOrders( (error,response,data)=>{
-		if (error)      orderwindow.insertBottom(JSON.stringify(error,null,1));
-		for (i=0;i< data.length;i++){
+		if (error )      orderwindow.insertBottom(JSON.stringify(error,null,1)); 
+		else
+		for (i=0; i < data.length;i++){
 			//orderwindow.insertBottom(JSON.stringify(data[i],null,1));
 			Object.keys(data[i]).forEach((d)=>{
 				orderwindow.insertBottom(d+": "+data[i][d]);
@@ -258,7 +300,8 @@ setInterval(function (){
 		}
 
 	});
-},10000);
+	*/
+},1000);
 /******/
 screen.render();
 
