@@ -22,8 +22,8 @@ if ( fs.existsSync('./cache/tradeStats.coins') ){
 websocket = new gdax.WebsocketClient(coins,"wss://ws-feed.gdax.com",null,{ 'channels': [ "full" ]});
 //websocket = new gdax.WebsocketClient(coins,"wss://ws-feed.gdax.com",null,{ 'channels': ["full","level2"]});
 
-websocket.on('error', err => { /* handle error */ });
-websocket.on('close', () => { /* ... */ });
+websocket.on('error', err => { console.log(err)/* handle error */ });
+websocket.on('close', () => { console.log("colose")/* ... */ });
 
 function myRound(number, precision) {
     var factor = Math.pow(10, precision);
