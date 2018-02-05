@@ -10,7 +10,6 @@ var screen = blessed.screen({
 screen.title = 'my window title';
 
 var windows = display(screen)
-windows.main.setContent('hello')
 // Quit on Escape, q, or Control-C.
 screen.key(['escape', 'q', 'C-c'], function(ch, key) {
   return process.exit(0);
@@ -24,7 +23,7 @@ console.log = function(line){
 
 /*********************************************************************
 ** 
-** gdax
+** gdax - trading 
 **
 *********************************************************************/
 var Gdax = require('gdax');
@@ -41,37 +40,38 @@ var orders = [];
 var myorders = {};
 var ticker = {};
 var accounts = [];
-var ballance = 0.0
-var lastBallance = 0.0;
-var startBallance = undefined;
-var ballanceC = 0.0
-var lastBallanceC = 0.0;
-var startBallanceC = undefined;
+var balance = {};
+var startBalance = undefined;
 
-function calcBallance(){
+function calcBalance(){
 	if ( accounts.USD === undefined ||  accounts.BTC === undefined ) return
 	var buy_usd=0;
 	var sell_usd=0;
 	var coin_count = 0;
 	coin_count = orders.reduce((count,order) => count+(order.size - order.filled_size),0) 		
-	//console.log(' usd avail '+accounts['USD'].available, " ", typeof accounts['USD'].available) ;
-	//console.log(' usd avail '+accounts['BTC'].available, " ", typeof accounts['BTC'].available) ;
-	//console.log(' buy_usd   '+buy_usd);
-	//console.log(' sell_usd  '+sell_usd);
-	lastBallance = ballance;
-	ballance = truncate(
-		 (parseFloat(accounts['USD'].available )) + 
-		 (parseFloat(accounts['BTC'].available) * ticker.best_ask) +
-		 (coin_count * ticker.best_ask),3);
-	if (startBallance === undefined ) startBallance=ballance 
-// ******************* 
-// COIN Ballance
-	ballanceC = truncate(
-		 (parseFloat(accounts['USD'].available) / ticker.best_ask ) + 
-		 (parseFloat(accounts['BTC'].available )) +
-		 (coin_count * ticker.best_ask),8);
-	lastBallanceC = ballanceC;
-	if (startBallanceC === undefined ) startBallanceC=ballanceC
+	// ******************* 
+	// COIN Ballance
+	balance = {
+		coins:   parseFloat(accounts['BTC'].available),
+		dollars: truncate( parseFloat(accounts['USD'].available),2),
+		best_ask: truncate( parseFloat(ticker.best_ask),2)
+	}
+	if ( startBalance === undefined ) startBalance = balance
+	windows.righttop.setContent("");
+	windows.righttop.pushLine("Balance")	
+	 windows.righttop.pushLine("USD Available:   "+ balance.dollars
+			+ " / "
+			+ truncate( balance.dollars / ticker.best_ask ,2))
+	 windows.righttop.pushLine("BTC Available:   "+ balance.coins 
+			+ " / $"+ truncate( balance.coins * ticker.best_ask,2))
+	 windows.righttop.pushLine("Ticker Best_Bid: "+ balance.best_ask)
+	 windows.righttop.pushLine( "------------------------------")
+	 windows.righttop.pushLine( "coins: "+ (balance.coins - startBalance.coins))
+         windows.righttop.pushLine( "dollars:"+ (balance.dollars - startBalance.dollars))
+	windows.rightbottom.setContent("");
+	Object.keys(ticker).forEach((key) => {
+		 windows.rightbottom.pushLine(key+": "+ticker[key])
+	})
 }
 
 function updateAccount(){
@@ -208,17 +208,7 @@ setInterval(function (){
 		//console.log('=======================================');
 	});
 	updateAccount();
-	calcBallance();
-	if ( ballance - lastBallance != 0 )
-	console.log("Ballance: "+ballance,
-		    " Last Ballance = "+lastBallance,
-		    " difference = "+ ( ballance - lastBallance ) ,
-		    " Total Changed ".red+ ( startBallance - ballance))
-	if ( ballance - lastBallance != 0 )
-	console.log("Ballance Coin : "+ballanceC,
-		    " Last Ballance = "+lastBallanceC,
-		    " difference = "+ ( ballanceC - lastBallanceC ) ,
-		    " Total Changed ".yellow+ ( startBallanceC - ballanceC))
+	calcBalance();
 },1000);
 /*******************************************
 Trade
