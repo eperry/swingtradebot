@@ -14,6 +14,8 @@
   ],
   "author": "eperry",
   "dependencies": {
+    "blessed-contrib": "github:eperry/blessed-contrib",
+    "colors": "^1.1.2",
     "commander": "^2.11.0",
     "gdax": "github:coinbase/gdax-node",
     "numeral": "^2.0.6"
