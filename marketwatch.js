@@ -4,7 +4,7 @@ var blessed = require('blessed');
 var numeral = require('numeral');
 var gdax = require('gdax');
 var fs   = require('fs');
-var gdaxconfig = require('./gdax.config')
+var gdaxconfig = require('./config/gdax.config')
 var counter={ total:0 };
 var gdaxAccounts={};
 coins=['ETH-USD',"BTC-USD","ETH-BTC"]
@@ -266,7 +266,6 @@ setInterval(function (){
 },110);
 /*****/
 setInterval(function (){ 
-	var gdaxconfig = require('./gdax.config')
 	//orderwindow.insertBottom(JSON.stringify(gdaxconfig,null,1));
 	const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
 	orderwindow.setContent("");
