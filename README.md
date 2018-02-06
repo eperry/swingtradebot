@@ -9,6 +9,10 @@ DO NOT USE THIS TO MAKE MONEY - I garrentee you will loose money right now
 npm install
 cp config/gdax.conf.sample config/gdax.conf 
 # Edit the gdax.conf with your API Key
+BUY SELL BOT -- DO NOT USE AGAINST REAL MONEY/COINS
 node ./buy-sell-bot.js
 
 DO NOT USE THIS TO MAKE MONEY - I garrentee you will loose money right now
+
+
+MarketWatch.js  = monitoring of the market. Still in development don't use against real markets
