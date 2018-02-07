@@ -1,5 +1,5 @@
 var Gdax = require('gdax');
-var gdaxconfig = require('./gdax.config')
+var gdaxconfig = require('../config/gdax.config')
 //console.log(gdaxconfig);
 const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
 var truncate = function (number, places){

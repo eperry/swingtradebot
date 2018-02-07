@@ -48,7 +48,7 @@ function calcBalance(){
 	var buy_usd=0;
 	var sell_usd=0;
 	var coin_count = 0;
-	coin_count = orders.reduce((count,order) => count+(order.size - order.filled_size),0) 		
+	if ( orders.length >0 ) coin_count = orders.reduce((count,order) => count+(order.size - order.filled_size),0) 		
 	// ******************* 
 	// COIN Ballance
 	balance = {
@@ -111,7 +111,6 @@ function updateAccount(){
                 });
 }
 
-
 /*
 authedClient.getAccounts((error,response,data)=>{
 	if (error)	console.log(error)
@@ -126,7 +125,6 @@ authedClient.getOrders( (error,response,data)=>{
 
 });
 */
-
 //websocket = new gdax.WebsocketClient(['BTC-USD'],gdaxConfig.apiURI,null,{ 'channels':['level2']});
 websocket = new Gdax.WebsocketClient(['BTC-USD'],"wss://ws-feed-public.sandbox.gdax.com",null,{ 'channels': ['user','ticker']});
 websocket.on('message', (data) => { 
@@ -200,10 +198,11 @@ setInterval(function (){
 		if(err) {
 			console.log(err);
 			return;
+		}else{
+			orders = data;
+			console.log(JSON.stringify(data));
 		}
-		orders = data;
 		//console.log('=======================================');
-		//if(data) console.log(data);
 		//if(response) console.log(response);
 		//console.log('=======================================');
 	});

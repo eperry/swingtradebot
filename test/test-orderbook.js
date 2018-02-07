@@ -1,5 +1,5 @@
 var Gdax = require('gdax');
-var gdaxConfig = require('./gdax.config')
+var gdaxConfig = require('../config/gdax.config')
 const orderbookSync = new Gdax.OrderbookSync(['BTC-USD'],gdaxConfig.apiURI);
 var ob = orderbookSync.books["BTC-USD"].state();
 var count=0
