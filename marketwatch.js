@@ -2,12 +2,11 @@ var Gdax = require('gdax');
 var program = require('commander');
 var blessed = require('blessed');
 var numeral = require('numeral');
-var gdax = require('gdax');
 var fs   = require('fs');
-var gdaxconfig = require('./config/gdax.config')
+var config = require('./config/MarketWatch.conf')
 var counter={ total:0 };
 var gdaxAccounts={};
-coins=['ETH-USD',"BTC-USD","ETH-BTC"]
+coins=config.coins
 var tradeStats = {
 			direction: {},
 			tmpdirection: {},
@@ -19,8 +18,7 @@ if ( fs.existsSync('./cache/tradeStats.coins') ){
 	tradeStats.coins = JSON.parse(fs.readFileSync('./cache/tradeStats.coins','utf-8'))
 }
 
-websocket = new gdax.WebsocketClient(coins,"wss://ws-feed.gdax.com",null,{ 'channels': [ "full" ]});
-//websocket = new gdax.WebsocketClient(coins,"wss://ws-feed.gdax.com",null,{ 'channels': ["full","level2"]});
+websocket = new Gdax.WebsocketClient(coins,config.apiURI,null,{ 'channels': [ "full" ]});
 
 websocket.on('error', err => { console.log(err)/* handle error */ });
 websocket.on('close', () => { console.log("colose")/* ... */ });
@@ -267,7 +265,10 @@ setInterval(function (){
 /*****/
 setInterval(function (){ 
 	//orderwindow.insertBottom(JSON.stringify(gdaxconfig,null,1));
-	const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
+	const authedClient = new Gdax.AuthenticatedClient(config.gdax.key,
+							  config.gdax.secret, 
+							  config.gdax.passphrase, 
+							  config.gdax.apiURI);
 	orderwindow.setContent("");
 	Object.keys(counter).forEach( function (d){
 		orderwindow.insertBottom("Trades message types: "+d );
@@ -275,31 +276,6 @@ setInterval(function (){
 			orderwindow.insertBottom("                               "+m+" = "+counter[d][m]);
 		})
 	})
-	//orderwindow.insertBottom(JSON.stringify(authedClient,null,1));
-	/*******************
-	authedClient.getAccounts((error,response,data)=>{
-		if (error)      orderwindow.insertBottom(JSON.stringify(error,null,1));
-		for (i=0;i< data.length;i++){
-			Object.keys(data[i]).forEach((d)=>{
-				orderwindow.insertBottom(d+": "+data[i][d]);
-			})
-		}
-
-	});
-	*******************/
-	/*
-	authedClient.getOrders( (error,response,data)=>{
-		if (error )      orderwindow.insertBottom(JSON.stringify(error,null,1)); 
-		else
-		for (i=0; i < data.length;i++){
-			//orderwindow.insertBottom(JSON.stringify(data[i],null,1));
-			Object.keys(data[i]).forEach((d)=>{
-				orderwindow.insertBottom(d+": "+data[i][d]);
-			})
-		}
-
-	});
-	*/
 },1000);
 /******/
 screen.render();

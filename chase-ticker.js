@@ -4,15 +4,24 @@ var gdaxconfig = require(__dirname+'/config/gdax.config')
 var config = require(__dirname+'/config/Local.config')
 var ticker = undefined;
 var match = [] ;
-var orders = {};
-//console.log(gdaxconfig);
-const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
+var orders = { 'buy':{},'sell':{}};
+var buyOffset  = .00
+var sellOffset = .00
+
+
+const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, 
+						  gdaxconfig.secret, 
+						  gdaxconfig.passphrase, 
+						  gdaxconfig.apiURI);
 var truncate = function (number, places){
 	var shift = Math.pow(10,places);
 	return ((number * shift) | 0 ) / shift;
 }
 //websocket = new gdax.WebsocketClient(['BTC-USD'],gdaxConfig.apiURI,null,{ 'channels':['level2']});
-websocket = new Gdax.WebsocketClient(['BTC-USD'],"wss://ws-feed-public.sandbox.gdax.com",null,{ 'channels': ['ticker','full']});
+websocket = new Gdax.WebsocketClient(['BTC-USD'],
+				"wss://ws-feed-public.sandbox.gdax.com",
+				null,
+				{ 'channels': ['ticker','full']});
 websocket.on('message', (data) => { 
 	/**********************************************************
 	{
@@ -42,17 +51,35 @@ websocket.on('message', (data) => {
 			if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
 		})
 		ticker = data;
-		Object.keys(orders).forEach((o) => { 
-			console.log(o); 
-			authedClient.cancelOrder(o.id,(error,response,data) => {
-				if (err) return
-				console.log(data)
-			}) 
-		})
+		console.log("Canceling all open orders on new ticker"); 
+                authedClient.cancelAllOrders({ product_id: 'BTC-USD' }, (err, response, data)=>{
+			if(err) console.log(err)
+			//if(data) console.log(data)
+			data.forEach((d) =>{
+				console.log(d)
+				if ( orders.sell[d] !== undefined ) delete(orders.sell[d])
+				if ( orders.buy[d]  !== undefined ) delete(orders.buy[d])
+			})
+		});
+		//console.log("orders",orders);
+		var b = Object.keys(orders.buy);
+		var s = Object.keys(orders.sell);
+		//console.log("orders",o.length);
+		if ( b.length == 0 ) buy(buyOffset);
+		if ( s.length == 0 ) sell(sellOffset);
+		process.stdout.write("\rOrders buy "+b.length+" sell "+s.length)
+		//Object.keys(orders).forEach((o) => { 
+			//console.log(o); 
+			//authedClient.cancelOrders()
+		//})
 	}
 	if ( data.type === 'done' ){
-		if ( orders[data.id] !== undefined ) {
-			delete (orders[data.id])
+		//console.log(data)
+		if ( orders[data.side][data.order_id] !== undefined ) {
+			delete (orders[data.side][data.order_id])
+			var o = Object.keys(orders[data.side]);
+			if ( o.length == 0 && data.side === 'buy' ) buy(buyOffset);
+			if ( o.length == 0 && data.side === 'sell' ) sell(sellOffset);
 		}
 	}
 	if ( data.type === 'match' ){
@@ -74,8 +101,8 @@ websocket.on('message', (data) => {
 		Object.keys(data).forEach((k) => {
 			if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
 		})
-		if ( orders[data.taker_order_id] !== undefined){
-			console.log(orders[data.taker_order_id], data.id );
+		if ( orders[data.side][data.taker_order_id] !== undefined){
+			console.log(orders[data.side][data.taker_order_id], data.id );
 			process.exit(0);
 		}
 		//match.push(data);
@@ -83,12 +110,12 @@ websocket.on('message', (data) => {
 });
 websocket.on('error', err => { console.log(err) });
 websocket.on('close', () => { console.log("Closed") });
-function buy() { 
+function buy(offset=0.00) { 
 	console.log("trying to buy");
 	if (ticker === undefined ) return 
 
 		const buyParams = {
-		  price: ticker.best_bid,
+		  price: ticker.best_bid+offset,
 		  size: .1,
 		  product_id: 'BTC-USD',
 		  post_only: false,
@@ -97,17 +124,51 @@ function buy() {
 			if(err) console.log("buy error",err.data);
 			//if(data) console.log("buy data",data);
 			if (data) {
-				Object.keys(data).forEach((k) => process.stdout.write(data[k].blue+"   "))
+				Object.keys(data).forEach((k) => process.stdout.write(data[k].toString().blue+"   "))
 				console.log("");
 				Object.keys(data).forEach((k) => {
 					if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
 				})
-				orders[data.id]=data
+				orders['buy'][data.id]=data
 			}
 		});
 	}
+function sell(offset = 0.00 ) { 
+	console.log("trying to sell");
+	if (ticker === undefined ) return 
 
-setInterval(()=> {
+		const sellParams = {
+		  price: ticker.best_ask-offset,
+		  size: .1,
+		  product_id: 'BTC-USD',
+		  post_only: false,
+		};
+		authedClient.sell(sellParams, (err, response, data)=>{
+			if(err) console.log("sell error",err.data);
+			//if(data) console.log("buy data",data);
+			if (data) {
+				Object.keys(data).forEach((k) => process.stdout.write(data[k].toString().red+"   "))
+				console.log("");
+				Object.keys(data).forEach((k) => {
+					if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
+				})
+				orders['sell'][data.id]=data
+			}
+		});
+	}
+setInterval(() => {
 	//console.log("orders",orders);
-	if ( Object.keys(orders).length == 0 ) buy();
-},1000)
+	var b = Object.keys(orders.buy);
+	var s = Object.keys(orders.sell);
+	//console.log("orders",o.length);
+	if ( b.length == 0 ) buy(buyOffset);
+	if ( s.length == 0 ) sell(sellOffset);
+	if (ticker.best_ask !== undefined && ticker.best_bid !== undefined ){
+		diff=( ticker.best_ask - ticker.best_bid )
+		buyOffset = truncate(diff/2,2);
+	}else{
+		diff=0;
+	}
+	process.stdout.write("\rOrders buy "+b.length+" sell "+s.length+" "+ buyOffset )	
+
+},1000);

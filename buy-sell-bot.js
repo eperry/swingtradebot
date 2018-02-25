@@ -1,5 +1,6 @@
 var blessed = require('blessed')
 var display = require('./lib/display')
+var fs = require('fs')
 
 var screen = blessed.screen({
   smartCSR: false,
@@ -44,7 +45,7 @@ var balance = {};
 var startBalance = undefined;
 
 function calcBalance(){
-	if ( accounts.USD === undefined ||  accounts.BTC === undefined ) return
+	if ( accounts[config.trade.sell_asset] === undefined ||  accounts[config.trade.buy_asset] === undefined ) return
 	var buy_usd=0;
 	var sell_usd=0;
 	var coin_count = 0;
@@ -52,17 +53,17 @@ function calcBalance(){
 	// ******************* 
 	// COIN Ballance
 	balance = {
-		coins:   parseFloat(accounts['BTC'].available),
-		dollars: truncate( parseFloat(accounts['USD'].available),2),
+		coins:   parseFloat(accounts[config.trade.buy_asset].available),
+		dollars: truncate( parseFloat(accounts[config.trade.sell_asset].available),2),
 		best_ask: truncate( parseFloat(ticker.best_ask),2)
 	}
 	if ( startBalance === undefined ) startBalance = balance
 	windows.righttop.setContent("");
 	windows.righttop.pushLine("Balance")	
-	 windows.righttop.pushLine("USD Available:   "+ balance.dollars
+	 windows.righttop.pushLine("Currency Available:   "+ balance.dollars
 			+ " / "
 			+ truncate( balance.dollars / ticker.best_ask ,2))
-	 windows.righttop.pushLine("BTC Available:   "+ balance.coins 
+	 windows.righttop.pushLine("Coins Available:   "+ balance.coins 
 			+ " / $"+ truncate( balance.coins * ticker.best_ask,2))
 	 windows.righttop.pushLine("Ticker Best_Bid: "+ balance.best_ask)
 	 windows.righttop.pushLine( "------------------------------")
@@ -125,8 +126,12 @@ authedClient.getOrders( (error,response,data)=>{
 
 });
 */
-//websocket = new gdax.WebsocketClient(['BTC-USD'],gdaxConfig.apiURI,null,{ 'channels':['level2']});
-websocket = new Gdax.WebsocketClient(['BTC-USD'],"wss://ws-feed-public.sandbox.gdax.com",null,{ 'channels': ['user','ticker']});
+//websocket = new gdax.WebsocketClient([config.trade.buy_asset+"-"+config.trade.sell_asset],gdaxConfig.apiURI,null,{ 'channels':['level2']});
+var asset_pair = config.trade.buy_asset+"-"+config.trade.sell_asset;
+websocket = new Gdax.WebsocketClient([asset_pair]
+			,"wss://ws-feed-public.sandbox.gdax.com"
+			,null
+			,{ 'channels': ['ticker']});
 websocket.on('message', (data) => { 
 	/**********************************************************
 	{
@@ -200,7 +205,11 @@ setInterval(function (){
 			return;
 		}else{
 			orders = data;
-			console.log(JSON.stringify(data));
+			//console.log(JSON.stringify(data));
+			//console.log(JSON.stringify(response));
+			fs.writeFile('my.log', JSON.stringify(response), (err) => {  
+			    if (err) throw err;
+			});
 		}
 		//console.log('=======================================');
 		//if(response) console.log(response);
@@ -235,11 +244,11 @@ setInterval(function (){
 		bbm = config.best_bid_modification;
 		p = truncate(ticker.best_bid + bbm ,2);
 		q = config.default_buy_quanity;
-		if ( accounts['USD'].available - p < 0 ) { console.log("out of cash"); return;}
+		if ( accounts[config.trade.sell_asset].available - p < 0 ) { console.log("out of cash"); return;}
 		const buyParams = {
 		  price: p,
 		  size: q,
-		  product_id: 'BTC-USD',
+		  product_id: config.trade.buy_asset+'-'+config.trade.sell_asset,
 		  post_only: false,
 		};
 		authedClient.buy(buyParams, (err, response, data)=>{
@@ -261,11 +270,14 @@ setInterval(function (){
 		bam = config.best_ask_modification;
 		p = truncate(ticker.best_ask + bam ,2);
 		q = config.default_ask_quanity;
-		if ( accounts['BTC'].available - q < 0 ) { console.log(" out of BTC"); return;}
+		if ( accounts[config.trade.buy_asset].available - q < 0 ) { 
+			console.log(" out of "+config.trade.buy_asset); 
+			return;
+		}
 		const sellParams = {
 		  price: p,
 		  size:  q,
-		  product_id: 'BTC-USD',
+		  product_id: config.trade.buy_asset+'-'+config.trade.sell_asset,
 		  post_only: false,
 		};
 		//console.log(sellParams);
