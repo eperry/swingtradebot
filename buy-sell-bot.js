@@ -207,9 +207,11 @@ setInterval(function (){
 			orders = data;
 			//console.log(JSON.stringify(data));
 			//console.log(JSON.stringify(response));
+			/*
 			fs.writeFile('my.log', JSON.stringify(response), (err) => {  
 			    if (err) throw err;
 			});
+			*/
 		}
 		//console.log('=======================================');
 		//if(response) console.log(response);
