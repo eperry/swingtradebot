@@ -3,5 +3,5 @@ npm-debug.log
 .DS_Store
 .idea
 gdax.config
-MarketWatch.config
+MarketWatch.conf
 cache
