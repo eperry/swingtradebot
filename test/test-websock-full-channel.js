@@ -1,5 +1,5 @@
 var gdax = require('gdax');
-var gdaxConfig = require('./gdax.config')
+var gdaxConfig = require('../config/gdax.config')
 var direction=0;
 //websocket = new gdax.WebsocketClient(['BTC-USD'],gdaxConfig.apiURI,null,{ 'channels':['level2']});
 websocket = new gdax.WebsocketClient(['BTC-USD'],"wss://ws-feed.gdax.com",null,{ 'channels': ['full']});
@@ -24,12 +24,12 @@ websocket.on('message', data => {
 		console.log(JSON.stringify(data,null,1))
 	}
 	*/
-	/**/
+	/*
 	if ( data.type == 'done' ){
 		console.log(JSON.stringify(data,null,1))
 	}
-	/**/
-	//console.log(JSON.stringify(data,null,2))
+	*/
+	console.log(JSON.stringify(data,null,2))
 	/*
 	if (data.size !== undefined && data.type === "match" ){
 		console.log(JSON.stringify(data,null,1))
