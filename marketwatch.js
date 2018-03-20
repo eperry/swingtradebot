@@ -1,12 +1,13 @@
 var Gdax = require('gdax');
 var program = require('commander');
 var blessed = require('blessed');
+var contrib = require('blessed-contrib');
 var numeral = require('numeral');
 var fs   = require('fs');
 var config = require('./config/MarketWatch.conf')
 var counter={ total:0 };
 var gdaxAccounts={};
-coins=config.coins
+var coins=config.coins
 var tradeStats = {
 			direction: {},
 			tmpdirection: {},
@@ -39,10 +40,6 @@ program
 	.option('-f, --floor [floor]', 'Input low alert')
 program.parse(process.argv);
 
-
-
-
-
 // Create a screen object.
 var screen = blessed.screen({
   smartCSR: false,
@@ -52,17 +49,50 @@ var screen = blessed.screen({
 
 screen.title = 'my window title';
 
+var grid = new contrib.grid({rows: 12, cols: 12, screen: screen})
+
 // Create a box perfectly centered horizontally and vertically.
 var toppos=0;
+	var r = 0;
+	var c = 0;
+	var w = 4;
+	var h = 4;
 coins.forEach( function (coin){
-	tp = toppos+"%"
-	coinbox[coin]={}
-	coinbox[coin].buy = blessed.box({
-	  top: tp,
+	var leftpos = 0;
+	coinbox[coin]={};
+	[ "sell","buy"].forEach( (side) => {
+		//console.log(coin,side)
+	        coinbox[coin][side] = grid.set(r, c, h, w, blessed.box, {
+		  //top: 'center',
+		  //left: 'center',
+		  content: '',
+		  tags: true,
+		  border: {
+		    type: 'line'
+		  },
+		  style: {
+		    fg: 'white',
+		    //bg: 'black',
+		    border: {
+		      fg: '#f0f0f0'
+		    },
+		  },
+		  content: coin+" "+side
+		});
+		screen.append(coinbox[coin][side]);
+		r+=4
+        })
+	c+=4
+	r=0
+})
+var leftpos = 0;
+debugwindow = grid.set(8, 0, h, 8, blessed.box, {
+	  top: toppos+"%",
+	  left: leftpos+"%",
 	  //top: 'center',
 	  //left: 'center',
-	  width: '30%',
-	  height: '33%',
+	  width: '60%',
+	  height: '20%',
 	  content: '',
 	  tags: true,
 	  border: {
@@ -75,31 +105,11 @@ coins.forEach( function (coin){
 	      fg: '#f0f0f0'
 	    },
 	  }
-	});
-	coinbox[coin].sell = blessed.box({
-	  top: tp,
-	  //top: 'center',
-	  left: '30%',
-	  width: '30%',
-	  height: '33%',
-	  content: '',
-	  tags: true,
-	  border: {
-	    type: 'line'
-	  },
-	  style: {
-	    fg: 'white',
-	    //bg: 'black',
-	    border: {
-	      fg: '#f0f0f0'
-	    },
-	  }
-	});
-	screen.append(coinbox[coin]['buy']);
-	screen.append(coinbox[coin]['sell']);
-	toppos+=33
-})
-var tradewindow = blessed.box({
+});
+debugwindow.setContent("debug")
+screen.append(debugwindow);
+	         
+var tradewindow = grid.set(0, 8, 8, w, blessed.box, {
 	  left: '60%',
 	  //top: 'center',
 	  //left: 'center',
@@ -120,7 +130,7 @@ var tradewindow = blessed.box({
 	  }
 	});
 	screen.append(tradewindow);
-var orderwindow = blessed.Log({
+var orderwindow =grid.set(8, 8, h, w, blessed.Log, {
 	  left: '60%',
 	  top: '40%',
 	  //left: 'center',
@@ -149,7 +159,6 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
   return process.exit(0);
 });
 
-//coinbox['ETH-BTC'].focus();
 // Focus our element.
 websocket.on('message', data => {
 	counter.total++;
@@ -166,8 +175,6 @@ websocket.on('message', data => {
 	/* work with data */
         //var columns = columnify(data, {columns: Object.keys(data),   } )
         if ( data.type == 'match' 
-	  && data.price
-	  && data.size	
 	  ){
 		/***************************
 		{
@@ -183,6 +190,20 @@ websocket.on('message', data => {
 		 "time": "2018-01-20T03:18:36.087000Z"
 		}
 		****************************/
+		window = coinbox[data.product_id][data.side];
+		try {
+			window.setContent(data.product_id)
+		}catch(e){
+			debugwindow.insertBottom("----"+ e +"---------")
+			debugwindow.insertBottom( data.product_id +" "+ data.side );
+			console.log( coinbox[data.product_id] );
+			return;
+		}
+
+		Object.keys(data).forEach( function (d){
+			window.insertBottom(d+": "+data[d])
+			//tradeStats.direction[data.product_id]; 
+		});
 		if ( tradeStats.coins[data.product_id] === undefined ) tradeStats.coins[data.product_id]={};
 		tradeStats.coins[data.product_id][data.side]=data;
 		tradeStats.lastmatch=data;
@@ -194,9 +215,7 @@ websocket.on('message', data => {
 		}
 		//tradeStats.direction[data.product_id]/=2
         }
-        if ( data.type === 'open'  
-	  && data.price
-	  ){
+        if ( data.type === 'open'  ){
 		/*{
 		 "type": "done",
 		 "side": "sell",
@@ -209,23 +228,28 @@ websocket.on('message', data => {
 		 "time": "2018-01-17T12:24:30.229000Z"
 		}*/
                 //console.log(JSON.stringify(data,null,1))
+		/***********************************************************************
 		window = coinbox[data.product_id][data.side];
 		window.setContent(data.product_id)
 		Object.keys(data).forEach( function (d){
 			window.insertBottom(d+": "+data[d])
-			tradeStats.direction[data.product_id]; 
+			//tradeStats.direction[data.product_id]; 
 		});
-		if ( data.remaining_size !== undefined ) {
-			if ( tradeStats.tmpdirection[data.product_id] === undefined ) {tradeStats.tmpdirection[data.product_id]=0;}
-			if ( data.side === 'sell' ){
-				tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
-			}else{
-				tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
-			}
+		************************************************************************/
+		//if ( data.remaining_size !== undefined ) {
+		if ( tradeStats.tmpdirection[data.product_id] === undefined ) {tradeStats.tmpdirection[data.product_id]=0;}
+		if ( data.side === 'sell' ){
+			tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
+		}else{
+			tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
 		}
+		//}
 	}
-	if ( data.type === "done" && data.reason === 'canceled'  ){
-		if ( data.remaining_size !== undefined ) return;
+	if ( data.type === "done" 
+	     && data.reason !== "filled"
+	   ){
+	//&& data.reason === 'canceled'  ){
+		//if ( data.remaining_size !== undefined ) return;
 		if ( tradeStats.tmpdirection[data.product_id] === undefined ) { tradeStats.tmpdirection[data.product_id]=0;}
 		if ( data.side === 'sell' ){
 			tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
@@ -249,17 +273,14 @@ setInterval(function (){
 		tradewindow.insertBottom("Trades Tmp Direction: "+d+" = "+tradeStats.tmpdirection[d]);
 	})
 	
-	//tradewindow.insertBottom(JSON.stringify(tradeStats.coins,null,2))
-	//tradewindow.insertBottom("----------")
-	try{
-		tradewindow.insertBottom("ETH-BTC buy  Ticker:     "+ tradeStats.coins['ETH-BTC']['buy'].price);
-		tradewindow.insertBottom("ETH-USD-BTC buy  Calc  : "+ tradeStats.coins['ETH-USD']['buy'].price/tradeStats.coins['BTC-USD']['buy'].price);
-		tradewindow.insertBottom("ETH-BTC sell Ticker:     "+ tradeStats.coins['ETH-BTC']['sell'].price);
-		tradewindow.insertBottom("ETH-USD-BTC sell Calc  : "+ tradeStats.coins['ETH-USD']['sell'].price/tradeStats.coins['BTC-USD']['sell'].price);
-//		tradewindow.insertBottom("ETH-BTC : Last Match"+ JSON.stringify(tradeStats.lastmatch,null,2))
-		tradeStats.lastCoins=tradeStats.coins;	
-	} catch (e) {
-	}
+	Object.keys(tradeStats.coins).forEach( function (coin){
+		try{
+			tradewindow.insertBottom(coin+" buy  Ticker:     "+ tradeStats.coins[coin]['buy'].price);
+			tradewindow.insertBottom(coin+" sell Ticker:     "+ tradeStats.coins[coin]['sell'].price);
+			tradeStats.lastCoins=tradeStats.coins;	
+		} catch (e) {
+		}
+	})
 	screen.render(); 
 },110);
 /*****/
