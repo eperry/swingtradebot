@@ -1,7 +1,22 @@
-var blessed = require('blessed')
-var display = require('./lib/display')
-var fs = require('fs')
+var fs         = require('fs')
+var blessed    = require('blessed')
+var display    = require('./lib/display')
+var trades     = require('./lib/trades')
+var acct       = require('./lib/account');
+var Gdax       = require('gdax');
+var colors     = require('colors');
+var path       = require('path');
+var config-filename = path.basename(__filename);
+var gdaxconfig = require(__dirname+'/config/'+config-filename+'.config')
+var config     = require(__dirname+'/config/Local.config')
+
+
+var buyTrades  = new trades('buy')
+var sellTrades = new trades('sell')
+var account    = new acct('all');
+
 var dryrun = false;
+
 var screen = blessed.screen({
   smartCSR: false,
   fastCSR: true,
@@ -18,8 +33,7 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 
 screen.render();
 console.log = function(line){
-	if ( line !== undefined )
-		windows.main.pushLine(line)
+	if ( line !== undefined ) windows.main.pushLine(line)
 	screen.render();
 }
 
@@ -28,52 +42,16 @@ console.log = function(line){
 ** gdax - trading 
 **
 *********************************************************************/
-var Gdax = require('gdax');
-var colors = require('colors');
-var gdaxconfig = require(__dirname+'/config/gdax.config')
-var config = require(__dirname+'/config/Local.config')
 
 const authedClient = new Gdax.AuthenticatedClient(gdaxconfig.key, gdaxconfig.secret, gdaxconfig.passphrase, gdaxconfig.apiURI);
 var truncate = function (number, places){
 	var shift = Math.pow(10,places);
 	return ((number * shift) | 0 ) / shift;
 }
-var orders = [];
-var myorders = {};
-var ticker = {};
-var accounts = [];
-var balance = {};
-var startBalance = undefined;
 
 function calcBalance(){
-	if ( accounts[config.trade.sell_asset] === undefined ||  accounts[config.trade.buy_asset] === undefined ) return
-	var buy_usd=0;
-	var sell_usd=0;
-	var coin_count = 0;
-	if ( orders.length >0 ) coin_count = orders.reduce((count,order) => count+(order.size - order.filled_size),0) 		
-	// ******************* 
-	// COIN Ballance
-	balance = {
-		coins:   parseFloat(accounts[config.trade.buy_asset].available),
-		dollars: truncate( parseFloat(accounts[config.trade.sell_asset].available),2),
-		best_ask: truncate( parseFloat(ticker.best_ask),2)
-	}
-	if ( startBalance === undefined ) startBalance = balance
-	windows.righttop.setContent("");
-	windows.righttop.pushLine("Balance")	
-	 windows.righttop.pushLine("Currency Available:   "+ balance.dollars
-			+ " / "
-			+ truncate( balance.dollars / ticker.best_ask ,2))
-	 windows.righttop.pushLine("Coins Available:   "+ balance.coins 
-			+ " / $"+ truncate( balance.coins * ticker.best_ask,2))
-	 windows.righttop.pushLine("Ticker Best_Bid: "+ balance.best_ask)
-	 windows.righttop.pushLine( "------------------------------")
-	 windows.righttop.pushLine( "coins: "+ (balance.coins - startBalance.coins))
-         windows.righttop.pushLine( "dollars:"+ (balance.dollars - startBalance.dollars))
-	windows.rightbottom.setContent("");
-	Object.keys(ticker).forEach((key) => {
-		 windows.rightbottom.pushLine(key+": "+ticker[key])
-	})
+	windows.righttop.setContent(JSON.stringify(buyTrades,null,1));
+	windows.rightbottom.setContent(JSON.stringify(buyTrades,null,1));
 }
 
 function updateAccount(){
@@ -105,10 +83,8 @@ function updateAccount(){
                             profile_id: '48744b90-c75f-43c4-b5c4-0c10c6dc644e' } ]
                         **********************************************************************/
                         if(err) console.log(err.data);
-                        if(data)  {
-				data.forEach((a) => {
-					accounts[a.currency] = a;
-				})
+                        if(data) {
+				account.updateAccount(data)
 			}
                 });
 }
@@ -158,9 +134,11 @@ websocket.on('message', (data) => {
 		Object.keys(data).forEach((k) => {
 			if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
 		})
+		 buyTrades.setTickerPrice ( data.best_ask );
+		sellTrades.setTickerPrice ( data.best_bid );
 		ticker = data;
 	}
-      if ( data.type == 'match'
+        if ( data.type == 'match'
           ){
                 /***************************
                 {
@@ -176,30 +154,19 @@ websocket.on('message', (data) => {
                  "time": "2018-01-20T03:18:36.087000Z"
                 }
                 ****************************/
-		Object.keys(data).forEach((k) => {
-			if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
-		})
-		orders.forEach((o) => {
-			if ( data.maker_order_id === o.id ){
-				//console.log(JSON.stringify(data))
-				var line ="";
-				Object.keys(o).forEach((k) => line+=o[k]+"   ")
-				console.log( "maker Match: ", line )
-			}
-		})
-		orders.forEach((o) => {
-			if ( data.taker_order_id === o.id ){
-				var line ="";
-				Object.keys(o).forEach((k) => line+=o[k]+"   ")
-				console.log( "taker Match: ", line )
-			}
-		})
 		
-        }// end match if
+        } // end match if
+  	if (  data.type === "done"
+           && data.reason === "filled"
+           ){
+		var b = orders.filter( element => ( element.id === data.id ))
+		console.log(b)
+        }
+
 
 });
 websocket.on('error', err => { console.log(err) });
-websocket.on('close', () => { /* ... */ });
+websocket.on('close', () => {  console.log("Websocket closed") });
 /********************************
 Update Orders and Update Account funds
 *********************************/
@@ -258,91 +225,3 @@ setInterval(function (){
 	updateAccount();
 	calcBalance();
 },1000);
-/*******************************************
-Trade
-********************************************/
-setInterval(function (){
-	/*
-	config
-	{
-	  "SLACK_URL": "https://hooks.slack.com/services/xxxx/xxxx/xxxx",
-	  "default_buy_quanity": .01,
-	  "default_ask_quanity": .01,
-	  "total_open_order_buy": 1,
-	  "total_open_order_ask": 1,
-	  "buy_sell_max_spread": 1,
-	  "max_buy_usd": 1000,
-	  "max_sell_usd": 800,
-	  "best_bid_modification": -0.20,
-	  "best_ask_modification": 0.20,
-	}
-	*/
-	var b = orders.filter( element => element.side === 'buy')
-	//console.log("buy",  JSON.stringify(b,null,2) )
-	spread = (ticker.best_ask - ticker.best_bid)
-	if (  ticker.best_bid !== undefined && b.length < config.total_open_order_buy  ){
-		bbm = config.best_bid_modification;
-		p = truncate(ticker.best_bid + bbm ,2);
-		q = config.default_buy_quanity;
-		if ( accounts[config.trade.sell_asset].available - p < 0 ) { console.log("out of cash"); return;}
-		const buyParams = {
-		  price: p,
-		  size: q,
-		  product_id: config.trade.buy_asset+'-'+config.trade.sell_asset,
-		  post_only: false,
-		};
-		if( !dryrun ){
-		authedClient.buy(buyParams, (err, response, data)=>{
-			if(err) console.log("buy error",err.data, this);
-			//if(data) console.log("buy data",data);
-			if (data) {
-				var line ="";
-				Object.keys(data).forEach((k) => line+=data[k].toString().red+"   ")
-				console.log(line);
-			}
-			updateAccount()
-		})
-		}else{
-			var line ="";
-			Object.keys(buyParams).forEach((k) => line+=buyParams[k].toString().red+"   ")
-			console.log("DRYRUN: "+line);
-		} //if dryrun
-	}
-	var s = orders.filter( (element) => element.side === 'sell' )
-	//console.log("sell",JSON.stringify(s,null,2) )
-	if ( ticker.best_ask !== undefined && s.length < config.total_open_order_ask   ){
-		//console.log(config);
-		bam = config.best_ask_modification;
-		p = truncate(ticker.best_ask + bam ,2);
-		q = config.default_ask_quanity;
-		if ( accounts[config.trade.buy_asset].available - q < 0 ) { 
-			console.log(" out of "+config.trade.buy_asset); 
-			return;
-		}
-		const sellParams = {
-		  price: p,
-		  size:  q,
-		  product_id: config.trade.buy_asset+'-'+config.trade.sell_asset,
-		  post_only: false,
-		};
-		//console.log(sellParams);
-		//console.log('---------------------------------------');
-		if( !dryrun ){
-		authedClient.sell(sellParams, (err, response, data)=>{
-			if(err) console.log("sell error",err.data);
-			//if(data) console.log('sell data',data);
-			if (data) {
-				var line ="";
-				Object.keys(data).forEach((k) => line+=data[k].toString().blue+"   ")
-				console.log(line);
-			}
-			updateAccount()
-			//if(response) console.log(response);
-		});
-		}else{
-			var line ="";
-			Object.keys(sellParams).forEach((k) => line+=sellParams[k].toString().blue+"   ")
-			console.log("DRYRUN: "+line);
-		} //if dryrun
-	}
-},2000);

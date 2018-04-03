@@ -5,3 +5,5 @@ npm-debug.log
 gdax.config
 MarketWatch.conf
 cache
+*.config
+config/*.config

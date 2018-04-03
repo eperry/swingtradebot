@@ -67,6 +67,7 @@ coins.forEach( function (coin){
 		  //left: 'center',
 		  content: '',
 		  tags: true,
+		  label: coin + " " + side,
 		  border: {
 		    type: 'line'
 		  },
@@ -77,7 +78,6 @@ coins.forEach( function (coin){
 		      fg: '#f0f0f0'
 		    },
 		  },
-		  content: coin+" "+side
 		});
 		screen.append(coinbox[coin][side]);
 		r+=4
@@ -109,13 +109,14 @@ debugwindow = grid.set(8, 0, h, 8, blessed.box, {
 debugwindow.setContent("debug")
 screen.append(debugwindow);
 	         
-var tradewindow = grid.set(0, 8, 8, w, blessed.box, {
+var tradewindow = grid.set(0, 8, 5, w, blessed.box, {
 	  left: '60%',
 	  //top: 'center',
 	  //left: 'center',
 	  //width: '30%',
 	  height: '40%',
 	  scrollable: true,
+	  label: "Trade Window",
 	  content: '',
 	  tags: true,
 	  border: {
@@ -130,7 +131,7 @@ var tradewindow = grid.set(0, 8, 8, w, blessed.box, {
 	  }
 	});
 	screen.append(tradewindow);
-var orderwindow =grid.set(8, 8, h, w, blessed.Log, {
+var orderwindow =grid.set(5, 8, 7, w, blessed.Log, {
 	  left: '60%',
 	  top: '40%',
 	  //left: 'center',
@@ -140,6 +141,7 @@ var orderwindow =grid.set(8, 8, h, w, blessed.Log, {
 	  alwaysScroll:true,
 	  content: '',
 	  tags: true,
+	  label: "Debug Window",
 	  border: {
 	    type: 'line'
 	  },
@@ -191,15 +193,7 @@ websocket.on('message', data => {
 		}
 		****************************/
 		window = coinbox[data.product_id][data.side];
-		try {
-			window.setContent(data.product_id)
-		}catch(e){
-			debugwindow.insertBottom("----"+ e +"---------")
-			debugwindow.insertBottom( data.product_id +" "+ data.side );
-			console.log( coinbox[data.product_id] );
-			return;
-		}
-
+		window.content=''
 		Object.keys(data).forEach( function (d){
 			window.insertBottom(d+": "+data[d])
 			//tradeStats.direction[data.product_id]; 
@@ -264,7 +258,7 @@ setInterval(function (){
 },10000);
 // Render the screen.
 setInterval(function (){ 
-	tradewindow.setContent("Trades messages: ");
+	tradewindow.setContent("");
 	Object.keys(tradeStats.direction).forEach( function (d){
 		tradewindow.insertBottom("Trades Direction: "+d+" = "+tradeStats.direction[d]);
 	})
