@@ -1,19 +1,21 @@
-var fs         = require('fs')
-var blessed    = require('blessed')
-var display    = require('./lib/display')
-var trades     = require('./lib/trades')
+var fs         = require('fs');
+var blessed    = require('blessed');
+var display    = require('./lib/display');
+var trades     = require('./lib/trades');
 var acct       = require('./lib/account');
+var ord	       = require('./lib/orders');
 var Gdax       = require('gdax');
 var colors     = require('colors');
 var path       = require('path');
-var config-filename = path.basename(__filename);
-var gdaxconfig = require(__dirname+'/config/'+config-filename+'.config')
+var configfilename = path.basename(__filename);
+var gdaxconfig = require(__dirname+'/config/'+configfilename+'.config')
 var config     = require(__dirname+'/config/Local.config')
 
 
 var buyTrades  = new trades('buy')
 var sellTrades = new trades('sell')
 var account    = new acct('all');
+var orders     = new ord()
 
 var dryrun = false;
 
@@ -33,7 +35,7 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 
 screen.render();
 console.log = function(line){
-	if ( line !== undefined ) windows.main.pushLine(line)
+	if ( line !== undefined ) windows.main.pushLine("-"+line)
 	screen.render();
 }
 
@@ -50,8 +52,17 @@ var truncate = function (number, places){
 }
 
 function calcBalance(){
-	windows.righttop.setContent(JSON.stringify(buyTrades,null,1));
-	windows.rightbottom.setContent(JSON.stringify(buyTrades,null,1));
+	windows.header.setContent(JSON.stringify(buyTrades));
+	windows.header.pushLine(JSON.stringify(sellTrades));
+	o = orders.getAllOrders();
+	let out=""
+	for( var i in o ){
+		Object.keys(o[i]).forEach((k) => {
+			out+=k+":   "+o[i][k]+"\n"
+		})
+		windows.main.setContent(out+"--------------------------------------");
+	}
+	
 }
 
 function updateAccount(){
@@ -96,20 +107,17 @@ authedClient.getAccounts((error,response,data)=>{
 	console.log(data)
 
 });
-authedClient.getOrders( (error,response,data)=>{
-	if (error)	console.log(error)
-	//console.log(response)
-	console.log(data)
-
-});
 */
 //websocket = new gdax.WebsocketClient([config.trade.buy_asset+"-"+config.trade.sell_asset],gdaxConfig.apiURI,null,{ 'channels':['level2']});
 var asset_pair = config.trade.buy_asset+"-"+config.trade.sell_asset;
 websocket = new Gdax.WebsocketClient([asset_pair]
-			,"wss://ws-feed-public.sandbox.gdax.com"
+			,gdaxconfig.wsURI
 			,null
-			,{ 'channels': ['ticker','matches']});
+			,{ 'channels': ['ticker','full']});
 websocket.on('message', (data) => { 
+	Object.keys(data).forEach((k) => {
+		if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
+	})
 	/**********************************************************
 	{
 	 "type": "ticker",
@@ -131,9 +139,7 @@ websocket.on('message', (data) => {
 	**********************************************/
 	if ( data.type === 'ticker' ){
 		//console.log(JSON.stringify(data,null,1))
-		Object.keys(data).forEach((k) => {
-			if ( ! isNaN(data[k] ))  data[k] = parseFloat(data[k]);
-		})
+		//console.log(JSON.stringify(data))
 		 buyTrades.setTickerPrice ( data.best_ask );
 		sellTrades.setTickerPrice ( data.best_bid );
 		ticker = data;
@@ -156,16 +162,30 @@ websocket.on('message', (data) => {
                 ****************************/
 		
         } // end match if
-  	if (  data.type === "done"
-           && data.reason === "filled"
-           ){
-		var b = orders.filter( element => ( element.id === data.id ))
-		console.log(b)
+        if ( data.type === 'open'  ){
+                /*{
+                 "type": "done",
+                 "side": "sell",
+                 "order_id": "1518b3bf-5e10-4c62-8fec-5c923e6d0d0b",
+                 "reason": "filled",
+                 "product_id": "ETH-USD",
+                 "price": "912.62000000",
+                 "remaining_size": "0.00000000",
+                 "sequence": 2068077210,
+                 "time": "2018-01-17T12:24:30.229000Z"
+                }*/
+		if ( data.side === 'sell') sellTrades.setAtvPrice(data)
+		if ( data.side === 'buy' )  buyTrades.setAtvPrice(data)
+        }
+
+  	if (  data.type === "done" ){
+		if ( data.side === 'sell')  sellTrades.setAtvPrice(data)
+		if ( data.side === 'buy' )  buyTrades.setAtvPrice(data)
         }
 
 
 });
-websocket.on('error', err => { console.log(err) });
+websocket.on('error', err => { console.log(JSON.stringify(err)) });
 websocket.on('close', () => {  console.log("Websocket closed") });
 /********************************
 Update Orders and Update Account funds
@@ -209,14 +229,16 @@ setInterval(function (){
 			console.log(err);
 			return;
 		}else{
-			orders = data;
-			//console.log(JSON.stringify(data));
-			//console.log(JSON.stringify(response));
-			/*
-			fs.writeFile('my.log', JSON.stringify(response), (err) => {  
-			    if (err) throw err;
-			});
-			*/
+			asset= config.trade.buy_asset+"-"+config.trade.sell_asset;
+			orders.updateOrders(data.filter( d => d.product_id === asset ))
+			let b = data.filter(d => { if( d.side==="buy"  && d.product_id === asset ) return d });
+			let s = data.filter(d => { if( d.side==="sell"  && d.product_id === asset ) return d });
+			if ( b !== undefined && b.length >0 ) {
+				buyTrades.setCurrentPrice(b.reduce(function(prev, current) { return (prev.price > current.price) ? prev : current }))
+			}else buyTrades.setCurrentPrice({ price: 0.00})
+			if ( s !== undefined && s.length >0 ) {
+				sellTrades.setCurrentPrice(s.reduce(function(prev, current) { return (prev.price > current.price) ? prev : current }))
+			}else sellTrades.setCurrentPrice({ price: 0.00})
 		}
 		//console.log('=======================================');
 		//if(response) console.log(response);
