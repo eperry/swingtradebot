@@ -7,3 +7,4 @@ MarketWatch.conf
 cache
 *.config
 config/*.config
+package-lock.json
