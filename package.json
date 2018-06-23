@@ -15,9 +15,12 @@
   "author": "eperry",
   "dependencies": {
     "blessed-contrib": "github:eperry/blessed-contrib",
+    "circular-buffer": "^1.0.2",
     "colors": "^1.3.0",
     "commander": "^2.15.1",
+    "dateformat": "^3.0.3",
     "gdax": "github:coinbase/gdax-node",
-    "numeral": "^2.0.6"
+    "numeral": "^2.0.6",
+    "sprintf": "^0.1.5"
   }
 }

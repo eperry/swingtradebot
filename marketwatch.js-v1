@@ -1,24 +1,19 @@
 var Gdax = require('gdax');
-var dateFormat = require('dateformat');
 var program = require('commander');
-var sprintf = require("sprintf");
 var blessed = require('blessed');
 var contrib = require('blessed-contrib');
 var numeral = require('numeral');
-var colors = require('colors');
 var fs   = require('fs');
 var config = require('./config/MarketWatch.conf')
 var counter={ total:0 };
 var gdaxAccounts={};
 var coins=config.coins
 var tradeStats = {
-		direction: {},
-		tmpdirection: {},
-		coins:{},
-		lastCoins: {},
-		lastMatch: {},
-		BuyCount: {},
-		SellCount: {}
+			direction: {},
+			tmpdirection: {},
+			coins:{},
+			lastCoins: {},
+			lastMatch: {}
 	};	
 if ( fs.existsSync('./cache/tradeStats.coins') ){
 	tradeStats.coins = JSON.parse(fs.readFileSync('./cache/tradeStats.coins','utf-8'))
@@ -60,16 +55,19 @@ var grid = new contrib.grid({rows: 12, cols: 12, screen: screen})
 var toppos=0;
 	var r = 0;
 	var c = 0;
-	var w = 7;
-	var h = parseInt(8/coins.length);
+	var w = 4;
+	var h = 4;
 coins.forEach( function (coin){
 	var leftpos = 0;
-	coinbox[coin] = grid.set(r, c, h, w, blessed.box, {
+	coinbox[coin]={};
+	[ "sell","buy"].forEach( (side) => {
+		//console.log(coin,side)
+	        coinbox[coin][side] = grid.set(r, c, h, w, blessed.box, {
 		  //top: 'center',
 		  //left: 'center',
 		  content: '',
 		  tags: true,
-		  label: coin ,
+		  label: coin + " " + side,
 		  border: {
 		    type: 'line'
 		  },
@@ -81,51 +79,37 @@ coins.forEach( function (coin){
 		    },
 		  },
 		});
-		screen.append(coinbox[coin]);
-	r+=parseInt(8/coins.length)
-	c=0
+		screen.append(coinbox[coin][side]);
+		r+=4
+        })
+	c+=4
+	r=0
 })
 var leftpos = 0;
-graphwindow = grid.set(8, 0, 4, 7, contrib.line, {
+debugwindow = grid.set(8, 0, h, 8, blessed.box, {
 	  top: toppos+"%",
 	  left: leftpos+"%",
 	  //top: 'center',
 	  //left: 'center',
-	  //width: '60%',
-	  //height: '20%',
-          xLabelPadding: 1
-         , xPadding: 1
-         , showLegend: true
-         , wholeNumbersOnly: false //true=do not show fraction in y axis
-         , label: 'buySell'
+	  width: '60%',
+	  height: '20%',
+	  content: '',
+	  tags: true,
+	  border: {
+	    type: 'line'
+	  },
+	  style: {
+	    fg: 'white',
+	    //bg: 'black',
+	    border: {
+	      fg: '#f0f0f0'
+	    },
+	  }
 });
-   var buyLine = {
-         title: 'buy',
-	 lastUpdateTime: [],
-	 style: { line: "blue" , text: "blue" },
-         x: [],
-         y: []
-      }
-   var sellLine = {
-         title: 'sell',
-	 lastUpdateTime: [],
-	 style: { line: "red" , text: "red" },
-         x: [],
-         y: []
-      }
-now = new Date();
-for (var i = 0; i <= 60; i++) {
-   buyLine.x[i]=""+i;
-   buyLine.y[i]=0;
-   sellLine.x[i]=""+i;
-   sellLine.y[i]=0;
-   buyLine.lastUpdateTime[i] = now
-   sellLine.lastUpdateTime[i] = now
-}
-graphwindow.setData([buyLine,sellLine]);
-screen.append(graphwindow);
+debugwindow.setContent("debug")
+screen.append(debugwindow);
 	         
-var tradewindow = grid.set(0, 7, 5, w, blessed.box, {
+var tradewindow = grid.set(0, 8, 5, w, blessed.box, {
 	  left: '60%',
 	  //top: 'center',
 	  //left: 'center',
@@ -147,7 +131,7 @@ var tradewindow = grid.set(0, 7, 5, w, blessed.box, {
 	  }
 	});
 	screen.append(tradewindow);
-var orderwindow =grid.set(5, 7, 7, w, blessed.Log, {
+var orderwindow =grid.set(5, 8, 7, w, blessed.Log, {
 	  left: '60%',
 	  top: '40%',
 	  //left: 'center',
@@ -208,34 +192,22 @@ websocket.on('message', data => {
 		 "time": "2018-01-20T03:18:36.087000Z"
 		}
 		****************************/
-		tradeTime= new Date(data.time)
-		tradeTimeMinutes= tradeTime.getMinutes();
+		window = coinbox[data.product_id][data.side];
+		window.content=''
+		Object.keys(data).forEach( function (d){
+			window.insertBottom(d+": "+data[d])
+			//tradeStats.direction[data.product_id]; 
+		});
 		if ( tradeStats.coins[data.product_id] === undefined ) tradeStats.coins[data.product_id]={};
 		tradeStats.coins[data.product_id][data.side]=data;
 		tradeStats.lastmatch=data;
 		if ( tradeStats.direction[data.product_id] === undefined ) tradeStats.direction[data.product_id]=0;
 		if ( data.side === 'sell' ){
-			if ( tradeTime - sellLine.y[tradeTimeMinutes].lastUpdateTime > 7200000 ) {
-				sellLine.y[tradeTimeMinutes]=0; 
-				sellLine.y[tradeTimeMinute].lastUpdateTime = tradeTime;
-			}
-			sellLine.y[tradeTime.getMinutes()]++;
 			tradeStats.direction[data.product_id]+=parseFloat(data.size);
 		}else{
-			if ( tradeTime - buyLine.y[tradeTimeMinutes].lastUpdateTime > 7200000 ){
-				buyLine.y[tradeTimeMinutes]=0; 
-				buyLine.y[tradeTimeMinute].lastUpdateTime = tradeTime;
-			}
-			buyLine.y[tradeTimeMinutes]++;
 			tradeStats.direction[data.product_id]-=parseFloat(data.size);
 		}
 		//tradeStats.direction[data.product_id]/=2
-		let direct = tradeStats.direction[data.product_id] > 0? 
-					sprintf("%.3f",tradeStats.direction[data.product_id]).toString().blue: 
-					sprintf("%.3f",tradeStats.direction[data.product_id]).toString().red;
-		s = dateFormat(tradeTime,"yyyy-mm-dd'T'HH:MM:ss") + sprintf(": %(trade_id)s %(product_id)s %(side)4s %(size)s %(price)s ",data )
-		s = data.side == "buy" ?  s = s.blue : s =s.red;
-		coinbox[data.product_id].insertBottom(sprintf("%s = %s",s,direct));
         }
         if ( data.type === 'open'  ){
 		/*{
@@ -303,7 +275,6 @@ setInterval(function (){
 		} catch (e) {
 		}
 	})
-	graphwindow.setData([buyLine,sellLine]);
 	screen.render(); 
 },110);
 /*****/
