@@ -23,12 +23,10 @@ var tradeStats = {
 if ( fs.existsSync('./cache/tradeStats.coins') ){
 	tradeStats.coins = JSON.parse(fs.readFileSync('./cache/tradeStats.coins','utf-8'))
 }
-
-websocket = new Gdax.WebsocketClient(coins,config.apiURI,null,{ 'channels': [ "full" ]});
-
-websocket.on('error', err => { console.log(err)/* handle error */ });
-websocket.on('close', () => { console.log("colose")/* ... */ });
-
+var websocket = undefined;
+var currentHeartBeat = []
+var lastHeartBeat = []
+var hbTimeout = 60000
 function myRound(number, precision) {
     var factor = Math.pow(10, precision);
     var tempNumber = number * factor;
@@ -157,7 +155,7 @@ var orderwindow =grid.set(5, 7, 7, w, blessed.Log, {
 	  alwaysScroll:true,
 	  content: '',
 	  tags: true,
-	  label: "Debug Window",
+	  label: "Order Window",
 	  border: {
 	    type: 'line'
 	  },
@@ -170,6 +168,27 @@ var orderwindow =grid.set(5, 7, 7, w, blessed.Log, {
 	  }
 	});
 	screen.append(orderwindow);
+var debugwindow = blessed.Log({
+	  top: 'center',
+	  left: 'center',
+	  width: '60%',
+	  height: '60%',
+	  hidden: true,
+	  content: 'debug',
+	  tags: true,
+	  label: "Debug Window",
+	  border: {
+	    type: 'line'
+	  },
+	  style: {
+	    fg: 'yellow',
+	    //bg: 'black',
+	    border: {
+	      fg: '#f0f0f0'
+	    },
+	  }
+	});
+	screen.append(debugwindow);
 
 
 // Quit on Escape, q, or Control-C.
@@ -177,9 +196,12 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
   return process.exit(0);
 });
 
-// Focus our element.
-websocket.on('message', data => {
+function marketStream(data){
+	if ( typeof data === undefined ) { console.error(data);  return }
 	counter.total++;
+
+	try {
+	
 	if (counter[data.type] === undefined ) counter[data.type]={};
 	if (counter[data.type]['total'] === undefined ) counter[data.type]['total']=0;
 	if ( data.reason !== undefined )
@@ -236,7 +258,7 @@ websocket.on('message', data => {
 		s = dateFormat(tradeTime,"yyyy-mm-dd'T'HH:MM:ss") + sprintf(": %(trade_id)s %(product_id)s %(side)4s %(size)s %(price)s ",data )
 		s = data.side == "buy" ?  s = s.blue : s =s.red;
 		coinbox[data.product_id].insertBottom(sprintf("%s = %s",s,direct));
-        }
+        } else
         if ( data.type === 'open'  ){
 		/*{
 		 "type": "done",
@@ -266,25 +288,87 @@ websocket.on('message', data => {
 			tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
 		}
 		//}
-	}
+	} else
 	if ( data.type === "done" 
 	     && data.reason !== "filled"
 	   ){
-	//&& data.reason === 'canceled'  ){
-		//if ( data.remaining_size !== undefined ) return;
 		if ( tradeStats.tmpdirection[data.product_id] === undefined ) { tradeStats.tmpdirection[data.product_id]=0;}
 		if ( data.side === 'sell' ){
 			tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
 		}else{
 			tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
 		}
+	} else
+	if ( data.type === "heartbeat" ){
+		/********************************************************************************
+		{
+		 "type": "heartbeat",
+		 "last_trade_id": 1882980,
+		 "product_id": "BTC-USD",
+		 "sequence": 28662529,
+		 "time": "2018-06-24T14:56:40.434000Z"
+		}
+		********************************************************************************/
+		//data.time = new Date(data.time);
+		lastHeartBeat[data.product_id] = currentHeartBeat[data.product_id]
+		currentHeartBeat[data.product_id] = { "product_id": data.product_id, "time": new Date(data.time) }
 	}
-});
+	}catch(error){
+		debugwindow.show; 
+		//debugwindow.insertBottom(data) 
+		debugwindow.insertBottom(error.message+"\n"+error.stack) 
+	}
+}
 
+//setInterval(function (){ 
+	//fs.writeFileSync('./cache/tradeStats.coins',JSON.stringify(tradeStats.coins,null,2),'utf-8')
+//},10000);
+
+/************************************************
+****  Check the heartbeat
+************************************************/
+function wsConnection(){
+	//debugwindow.show();
+	//debugwindow.insertBottom( "New Connection");
+	websocket = new Gdax.WebsocketClient(coins,config.apiURI,null,{ 'channels': [ "full" ]});
+	websocket.on('error', err => { 
+		debugwindow.show(); 
+		debugwindow.insertBottom(JSON.stringify(err)) 
+	});
+	websocket.on('close', () => { 
+		websocket.removeAllListeners();
+		debugwindow.show();  
+		debugwindow.insertBottom(JSON.stringify("close"))  
+		marketStream();
+	});
+	// Focus our element.
+	websocket.on('message', marketStream);
+}
 setInterval(function (){ 
-	fs.writeFileSync('./cache/tradeStats.coins',JSON.stringify(tradeStats.coins,null,2),'utf-8')
+	var chb = currentHeartBeat
+	let hbpi = Object.keys(chb);
+	//debugwindow.insertBottom("checking heartbeat "+JSON.stringify(hbpi))
+	if ( typeof websocket === "undefined" ) wsConnection()
+	for( i =0; i < hbpi.length;i++){
+		pi = hbpi[i]
+		//debugwindow.insertBottom("Checking heartbeat for product_id "+pi+" " )
+		if ( typeof lastHeartBeat[pi] === "undefined" ) {
+			lastHeartBeat[pi] = chb[pi] 
+		}
+		//debugwindow.insertBottom("---"+JSON.stringify(lastHeartBeat[pi]))
+		if ( (chb[pi].time - lastHeartBeat[pi].time ) > hbTimeout ){
+			debugwindow.show();
+			debugwindow.insertBottom( "Last Heartbeat " +(chb[pi].time - lastHeartBeat[pi].time ) +"/ms ago\n"+
+			"Lost Heartbeat - trying to reconnect ")
+			wsConnection()
+		}
+	}
+
 },10000);
-// Render the screen.
+
+/************************************************
+****  Render the screen.
+************************************************/
 setInterval(function (){ 
 	tradewindow.setContent("");
 	Object.keys(tradeStats.direction).forEach( function (d){
@@ -305,7 +389,7 @@ setInterval(function (){
 	})
 	graphwindow.setData([buyLine,sellLine]);
 	screen.render(); 
-},110);
+},210);
 /*****/
 setInterval(function (){ 
 	//orderwindow.insertBottom(JSON.stringify(gdaxconfig,null,1));
