@@ -376,7 +376,7 @@ setInterval(function (){
 	})
 	tradewindow.insertBottom("-------------------------");
 	Object.keys(tradeStats.tmpdirection).forEach( function (d){
-		tradewindow.insertBottom("Trades Tmp Direction: "+d+" = "+tradeStats.tmpdirection[d]);
+		tradewindow.insertBottom("Bid fishing Direction: "+d+" = "+tradeStats.tmpdirection[d]);
 	})
 	
 	Object.keys(tradeStats.coins).forEach( function (coin){
