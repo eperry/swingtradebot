@@ -1,8 +1,0 @@
-var config = {
-	 apiURI:"https://api-public.sandbox.gdax.com",
-	 passphrase: "",
-	 key: "",
-	 secret: ""
-}
-module.exports = config;
-	 
