@@ -13,7 +13,8 @@ var gdaxAccounts={};
 var coins=config.coins
 var tradeStats = {
 		direction: {},
-		tmpdirection: {},
+		tmpsize: {},
+		tmpprice: {},
 		coins:{},
 		lastCoins: {},
 		lastMatch: {},
@@ -23,6 +24,7 @@ var tradeStats = {
 if ( fs.existsSync('./cache/tradeStats.coins') ){
 	tradeStats.coins = JSON.parse(fs.readFileSync('./cache/tradeStats.coins','utf-8'))
 }
+var tracelevel = false // ability to turn on certain level of debugging while I figure out a problem
 var websocket = undefined;
 var currentHeartBeat = []
 var lastHeartBeat = []
@@ -170,7 +172,7 @@ var orderwindow =grid.set(5, 7, 7, w, blessed.Log, {
 	screen.append(orderwindow);
 var debugwindow = blessed.Log({
 	  top: 'center',
-	  left: 'center',
+	  left: '10%',
 	  width: '60%',
 	  height: '60%',
 	  hidden: true,
@@ -196,6 +198,9 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
   return process.exit(0);
 });
 
+screen.key(['t'], function(ch, key) {
+  tracelevel = true 
+});
 function marketStream(data){
 	if ( typeof data === undefined ) { console.error(data);  return }
 	counter.total++;
@@ -281,23 +286,26 @@ function marketStream(data){
 		});
 		************************************************************************/
 		//if ( data.remaining_size !== undefined ) {
-		if ( tradeStats.tmpdirection[data.product_id] === undefined ) {tradeStats.tmpdirection[data.product_id]=0;}
+		if ( tradeStats.tmpsize[data.product_id] === undefined ) {tradeStats.tmpsize[data.product_id]=0;}
 		if ( data.side === 'sell' ){
-			tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
+			tradeStats.tmpsize[data.product_id]+=parseFloat(data.remaining_size);
 		}else{
-			tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
+			tradeStats.tmpsize[data.product_id]-=parseFloat(data.remaining_size);
 		}
+		tradeStats.tmpavgprice[data.product_id]=(tradeStats.tmpsize[data.product_id]+parseFloat(data.remaining_size))/2;
 		//}
 	} else
 	if ( data.type === "done" 
 	     && data.reason !== "filled"
 	   ){
-		if ( tradeStats.tmpdirection[data.product_id] === undefined ) { tradeStats.tmpdirection[data.product_id]=0;}
+		if ( tradeStats.tmpsize[data.product_id] === undefined ) { tradeStats.tmpsize[data.product_id]=0;}
+		if ( tradeStats.tmpsize[data.product_id] === undefined ) { tradeStats.tmpprice[data.product_id]=0;}
 		if ( data.side === 'sell' ){
-			tradeStats.tmpdirection[data.product_id]-=parseFloat(data.remaining_size);
+			tradeStats.tmpsize[data.product_id]-=parseFloat(data.remaining_size);
 		}else{
-			tradeStats.tmpdirection[data.product_id]+=parseFloat(data.remaining_size);
+			tradeStats.tmpsize[data.product_id]+=parseFloat(data.remaining_size);
 		}
+		tradeStats.tmpavgprice[data.product_id]=(tradeStats.tmpsize[data.product_id]+parseFloat(data.remaining_size))/2;
 	} else
 	if ( data.type === "heartbeat" ){
 		/********************************************************************************
@@ -311,12 +319,14 @@ function marketStream(data){
 		********************************************************************************/
 		//data.time = new Date(data.time);
 		lastHeartBeat[data.product_id] = currentHeartBeat[data.product_id]
+		if(tracelevel) debugwindow.insertBottom(" setting heartbeat " + JSON.stringify(data))
 		currentHeartBeat[data.product_id] = { "product_id": data.product_id, "time": new Date(data.time) }
 	}
 	}catch(error){
 		debugwindow.show; 
 		//debugwindow.insertBottom(data) 
 		debugwindow.insertBottom(error.message+"\n"+error.stack) 
+		return;
 	}
 }
 
@@ -337,9 +347,8 @@ function wsConnection(){
 	});
 	websocket.on('close', () => { 
 		websocket.removeAllListeners();
-		debugwindow.show();  
 		debugwindow.insertBottom(JSON.stringify("close"))  
-		marketStream();
+		wsConnection();
 	});
 	// Focus our element.
 	websocket.on('message', marketStream);
@@ -347,19 +356,21 @@ function wsConnection(){
 setInterval(function (){ 
 	var chb = currentHeartBeat
 	let hbpi = Object.keys(chb);
-	//debugwindow.insertBottom("checking heartbeat "+JSON.stringify(hbpi))
+	//debugwindow.show();  
+	if (tracelevel) debugwindow.insertBottom("checking heartbeat "+JSON.stringify(hbpi))
 	if ( typeof websocket === "undefined" ) wsConnection()
 	for( i =0; i < hbpi.length;i++){
 		pi = hbpi[i]
-		//debugwindow.insertBottom("Checking heartbeat for product_id "+pi+" " )
+		if (tracelevel) debugwindow.insertBottom("Checking heartbeat for product_id "+pi+" " )
 		if ( typeof lastHeartBeat[pi] === "undefined" ) {
 			lastHeartBeat[pi] = chb[pi] 
 		}
-		//debugwindow.insertBottom("---"+JSON.stringify(lastHeartBeat[pi]))
+		if (tracelevel) debugwindow.insertBottom("---"+JSON.stringify(lastHeartBeat[pi]))
+		if (tracelevel) debugwindow.insertBottom( "Last Heartbeat " +(chb[pi].time - lastHeartBeat[pi].time ) +"/ms ago\n"+
+				"\tcurrent - last time > Timeout = "+ ( (chb[pi].time - lastHeartBeat[pi].time ) > hbTimeout )
+				)
 		if ( (chb[pi].time - lastHeartBeat[pi].time ) > hbTimeout ){
-			debugwindow.show();
-			debugwindow.insertBottom( "Last Heartbeat " +(chb[pi].time - lastHeartBeat[pi].time ) +"/ms ago\n"+
-			"Lost Heartbeat - trying to reconnect ")
+			debugwindow.insertBottom( "Lost Heartbeat - trying to reconnect ")
 			wsConnection()
 		}
 	}
@@ -372,11 +383,12 @@ setInterval(function (){
 setInterval(function (){ 
 	tradewindow.setContent("");
 	Object.keys(tradeStats.direction).forEach( function (d){
-		tradewindow.insertBottom("Trades Direction: "+d+" = "+tradeStats.direction[d]);
+		tradewindow.insertBottom("Trades size: "+d+" = "+tradeStats.direction[d]);
 	})
 	tradewindow.insertBottom("-------------------------");
-	Object.keys(tradeStats.tmpdirection).forEach( function (d){
-		tradewindow.insertBottom("Bid fishing Direction: "+d+" = "+tradeStats.tmpdirection[d]);
+	Object.keys(tradeStats.tmpsize).forEach( function (d){
+		tradewindow.insertBottom("Bid fishing size: "+d+" = "+tradeStats.tmpsize[d]);
+		tradewindow.insertBottom("Bid fishing avg price: "+d+" = "+tradeStats.tmpprice[d]);
 	})
 	
 	Object.keys(tradeStats.coins).forEach( function (coin){
