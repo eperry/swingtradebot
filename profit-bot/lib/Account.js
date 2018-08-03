@@ -30,9 +30,12 @@ Account.prototype.connect = function (){
 		);
 	this.getAccount()
 }
-Account.prototype.getAccount = async function (){
-	 await this.authedClient.getAccounts( )
-	     .then((data) =>{
+Account.prototype.getAccount = function (){
+	 this.authedClient.getAccounts( ( err, resp, data ) =>{
+	 if(err){
+	 	this.emit("error",sprintf("Account update error: "+err));
+		return;
+	 }
          /**********************************************************************
          [ { id: '4dce4a6d-62f4-4fef-a182-3b9d6d770745',
              currency: 'USD',
@@ -42,17 +45,13 @@ Account.prototype.getAccount = async function (){
              profile_id: '48744b90-c75f-43c4-b5c4-0c10c6dc644e' }
          ]
          **********************************************************************/
-		 if(data) {
-	           for (j = 0; j < data.length; j++){
-			var key = Object.keys(data[j])
-			for (i = 0; i < key.length;i++)
-				if ( ! isNaN(data[j][key[i]] ))  data[j][key[i]] = parseFloat(data[j][key[i]]);
-		   }
-		   this.accounts = data
-		   this.emit("update",data)
-		 }
-         }).catch((err)=> {
-		 this.emit("error",err);
+	   for (j = 0; j < data.length; j++){
+		var key = Object.keys(data[j])
+		for (i = 0; i < key.length;i++)
+			if ( ! isNaN(data[j][key[i]] ))  data[j][key[i]] = parseFloat(data[j][key[i]]);
+	   }
+	   this.emit("update",data)
+	   this.accounts = data
 	})
 }
 module.exports = Account

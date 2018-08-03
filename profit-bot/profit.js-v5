@@ -11,7 +11,7 @@ var Account        = require(__dirname+'/lib/Account.js');
 var sprintf        = require('sprintf')
 var columnify 	   = require('columnify')
 var jsdiff 	   = require('diff');
-var dryrun = true;
+var dryrun = false;
 
 // *****************
 var blessed 	   = require('blessed');
@@ -80,6 +80,8 @@ screen.key(['c'], function(ch, key) {
 
 });
 
+screen.key(['u'], () => account.getAccount()) 
+
 screen.key(['b'], buy) 
 
 function buy(ch, key){
@@ -99,6 +101,7 @@ function buy(ch, key){
 	}
 }
 
+
 screen.key(['s'], sell) 
 
 function sell(ch, key) {
@@ -114,7 +117,9 @@ function sell(ch, key) {
 	setTimeout(placeOrder,5000,orderParams)
 };
 function placeOrder(orderParams) {
+	leftwindow.insertBottom(JSON.stringify(orderParams))
 	orderParams.size = Math.trunc(orderParams.size)
+	leftwindow.insertBottom(JSON.stringify(orderParams))
 	if(  dryrun ){
 	  leftwindow.insertBottom(sprintf("DRYRUN %s price %s Size: %s",
 	 	orderParams.side,
@@ -187,13 +192,15 @@ tf.on("ticker", (data) =>{
 	if( account.accounts )
 	[ gdaxconfig.trade.buy_asset, 
 	  gdaxconfig.trade.sell_asset].forEach((ast) => {
-		a = account.accounts.find((d) => ast === d.currency )
-                rightwindow.insertBottom(sprintf("%s balance %.4f available: %.4f hold: %.4f",
-                    a.currency,
-                    a.balance,
-                    a.available,
-                    a.hold,
-                ))
+		if ( account.accounts.length > 0 ){
+			a = account.accounts.find((d) => ast === d.currency )
+			rightwindow.insertBottom(sprintf("%s balance %.4f available: %.4f hold: %.4f",
+			    a.currency,
+			    a.balance,
+			    a.available,
+			    a.hold,
+			))
+		}
         })
 })
 
@@ -209,7 +216,8 @@ uf.on("buy", (data)=>{
 		).red)
 	if ( data.reason === "filled" ){
 		Advice.lastbuy = data.price
-		setTimeout(sell,1000);
+		account.getAccount();
+		setTimeout(sell,10000);
 	}
 })
 uf.on("sell", (data)=>{
@@ -220,7 +228,8 @@ uf.on("sell", (data)=>{
 		).blue)
 	if ( data.reason === "filled" ){
 		Advice.lastsell = data.price
-		setTimeout(buy,1000);
+		account.getAccount();
+		setTimeout(buy,10000);
 	}
 })
 uf.on("update", (data) =>{
@@ -264,10 +273,14 @@ calculateBalance = function (){
           "profile_id": "431f183c-4714-4274-bb8a-3202d56678c2"
          }
          **********************************************************************************/
-        aba = account.accounts.find((a) => { return a.currency === gdaxconfig.trade.buy_asset  })
-        asa = account.accounts.find((a) => { return a.currency === gdaxconfig.trade.sell_asset })
-        balance[gdaxconfig.trade.buy_asset ] += aba.available
-        balance[gdaxconfig.trade.sell_asset] += asa.available
+	if ( account && 
+             account.accounts && 
+             account.accounts.length > 0  ) {
+		aba = account.accounts.find((a) => { return a.currency === gdaxconfig.trade.buy_asset  })
+		asa = account.accounts.find((a) => { return a.currency === gdaxconfig.trade.sell_asset })
+		balance[gdaxconfig.trade.buy_asset ] += aba.available
+		balance[gdaxconfig.trade.sell_asset] += asa.available
+	}
 }
 function showBalance(window){
 	var diff = jsdiff.diffChars(JSON.stringify(lastbalance,null,4), JSON.stringify(balance,null,4));
