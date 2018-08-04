@@ -54,5 +54,36 @@ Account.prototype.getAccount = function (){
 	   this.accounts = data
 	})
 }
+Account.prototype.placeOrder = function (orderParams) {
+        if(  this.gdaxconfig.dryrun ){
+          this.emit("message",sprintf("DRYRUN %s price %s Size: %s",
+                orderParams.side,
+                orderParams.price,
+                orderParams.size
+                ))
+          return;
+        }// End Dryrun
+        if ( orderParams.size < this.gdaxconfig.minOrderSize ){
+                this.emit("message",sprintf("%s order to small, no oder placed $%.2f size %.2f",
+                                orderParams.side,
+                                orderParams.price,
+                                orderParams.size
+                                ))
+		return;
+	}else{
+            this.authedClient.placeOrder(orderParams,(err,resp,data) => {
+                this.emit("message",sprintf("a %s price %.2f Size: %.2f",
+                        orderParams.side,
+                        orderParams.price,
+                        orderParams.size
+			)) 
+                if (err){
+                        this.emit("error",sprintf("ERROR: %s", err ))
+                } //End Error
+            })// End Place Order
+        } // End Else
+        this.getAccount();
+}
+
 module.exports = Account
 
