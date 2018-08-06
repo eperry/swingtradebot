@@ -21,6 +21,7 @@
     "commander": "^2.15.1",
     "dateformat": "^3.0.3",
     "diff": "^3.5.0",
+    "figures": "^2.0.0",
     "gdax": "github:coinbase/gdax-node",
     "numeral": "^2.0.6",
     "sprintf": "^0.1.5"

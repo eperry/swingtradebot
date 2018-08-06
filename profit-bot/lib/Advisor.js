@@ -25,6 +25,8 @@ Advisor = function (gdaxconfig) {
 	this.debugwindow = undefined
 	this.product_id  = gdaxconfig.trade.buy_asset+'-'+gdaxconfig.trade.sell_asset
 	this.monitor     = undefined
+	this.orders      = []
+	this.debugwinwindow = undefined
 }
 
 
@@ -74,10 +76,21 @@ Advisor.prototype.update = function(type, data) {
 		this.account = data
 		this.sellAssetBalance = data.find((a) => a.currency === this.gdaxconfig.trade.buy_asset )
 		this.buyAssetBalance  = data.find((a) => a.currency === this.gdaxconfig.trade.sell_asset)
+	}else if ( type == "orders" ) {
+		this.orders = data
 	}
 	this.calculate()
 }
+
 Advisor.prototype.calculate = function(){
+	function priceCheck(price, increment){
+		if( typeof this.debugwindow !== 'undefined' ) debugwindow.insertBottom("Advisor Price Check: Price "+price+" Increment "+increment);
+		if ( typeof this.orders !== 'undefined' && this.orders
+			.find((or)  => { or.price == price }) === 'undefined' ) {
+			return priceCheck(price+increment,increment)
+		}else
+			return price
+	}
         if( this.tickerFeed.current 
          && this.tickerFeed.last  
          && this.sellAssetBalance 
@@ -86,8 +99,11 @@ Advisor.prototype.calculate = function(){
                 var simplebid = ((this.tickerFeed.current.best_bid - this.gdaxconfig.bidAdjustment)*100) /100
                 var simpleask = ((this.tickerFeed.current.best_ask + this.gdaxconfig.askAdjustment)*100 )/100
                 if ( simpleask < this.lastbuy ) (( this.lastbuy + this.gdaxconfig.askAdjustment )*100    )/100
-                this.buy = simplebid
-                this.ask = simpleask
+		// ****************************************
+		// Check for over lap price
+		// ****************************************
+                this.buy = priceCheck(simplebid, (.01*-1) )
+                this.ask = priceCheck(simpleask, (.01)    )
                 as = Math.trunc(this.sellAssetBalance.available*100)/100 ;
 		as = as > this.gdaxconfig.maxOrderSize ? this.gdaxconfig.maxOrderSize: as
                 bs = Math.trunc((this.buyAssetBalance.available / this.buy)*100 )/100  ;

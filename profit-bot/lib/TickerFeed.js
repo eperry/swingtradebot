@@ -50,9 +50,9 @@ TickerFeed.prototype.connect = function (){
 			this.emit("ticker",this.ticker)
 		}
 	});
-	this.wsTickerFeed.on('error', err => { console.log(JSON.stringify(err)) });
+	this.wsTickerFeed.on('error', err => { this.emit("message",JSON.stringify(err)) });
 	this.wsTickerFeed.on('close', () => {  
-		console.log("TickerFeed Websocket closed") 
+		this.emit("message","TickerFeed Websocket closed") 
 		this.connect()
 	});
 	

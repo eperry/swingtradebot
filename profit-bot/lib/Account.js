@@ -26,57 +26,51 @@ Account.prototype.connect = function (){
 		this.gdaxconfig.key,
 		this.gdaxconfig.secret,
 		this.gdaxconfig.passphrase,
-		this.gdaxconfig.apiURI
+		this.gdaxconfig.apiURI,
+	        this.orders       = []
+
 		);
 	this.getAccount()
 }
 Account.prototype.getAccount = function (){
-	 this.authedClient.getAccounts( ( err, resp, data ) =>{
-	 if(err){
+	this.getOrders();
+	this.authedClient.getAccounts( ( err, resp, data ) =>{
+	if(err){
 	 	this.emit("error",sprintf("Account update error: "+err));
 		return;
-	 }
-         /**********************************************************************
-         [ { id: '4dce4a6d-62f4-4fef-a182-3b9d6d770745',
-             currency: 'USD',
-             balance: '727926.3580589406465000',
-             available: '722088.005462589328',
-             hold: '5838.3525963513185000',
-             profile_id: '48744b90-c75f-43c4-b5c4-0c10c6dc644e' }
-         ]
-         **********************************************************************/
-	   for (j = 0; j < data.length; j++){
+	}
+	for (j = 0; j < data.length; j++){
 		var key = Object.keys(data[j])
 		for (i = 0; i < key.length;i++)
 			if ( ! isNaN(data[j][key[i]] ))  data[j][key[i]] = parseFloat(data[j][key[i]]);
 	   }
-	   this.emit("update",data)
+	   this.emit("account",data)
 	   this.accounts = data
 	})
 }
 Account.prototype.placeOrder = function (orderParams) {
-        if(  this.gdaxconfig.dryrun ){
-          this.emit("message",sprintf("DRYRUN %s price %s Size: %s",
-                orderParams.side,
-                orderParams.price,
-                orderParams.size
-                ))
-          return;
+	if(  this.gdaxconfig.dryrun ){
+        	this.emit("message",sprintf("DRYRUN %s price %s Size: %s",
+			orderParams.side,
+			orderParams.price,
+			orderParams.size
+			))
+		return;
         }// End Dryrun
         if ( orderParams.size < this.gdaxconfig.minOrderSize ){
-                this.emit("message",sprintf("%s order to small, no oder placed $%.2f size %.2f",
-                                orderParams.side,
-                                orderParams.price,
-                                orderParams.size
-                                ))
+ 		this.emit("message",sprintf("%s order to small, no oder placed $%.2f size %.2f",
+ 			orderParams.side,
+ 			orderParams.price,
+ 			orderParams.size
+                        ))
 		return;
 	}else{
-            this.authedClient.placeOrder(orderParams,(err,resp,data) => {
-                this.emit("message",sprintf("a %s price %.2f Size: %.2f",
-                        orderParams.side,
-                        orderParams.price,
-                        orderParams.size
-			)) 
+ 		this.authedClient.placeOrder(orderParams,(err,resp,data) => {
+			this.emit("message",sprintf("a %s price %.2f Size: %.2f",
+				orderParams.side,
+				orderParams.price,
+				orderParams.size
+				)) 
                 if (err){
                         this.emit("error",sprintf("ERROR: %s", err ))
                 } //End Error
@@ -84,6 +78,28 @@ Account.prototype.placeOrder = function (orderParams) {
         } // End Else
         this.getAccount();
 }
+Account.prototype.getOrders = function (){
+        this.authedClient.getOrders((err, response, data)=>{
+                if(err) {
+                        this.emit("update",err)
+                        return;
+                }else{
+                        for( i = 0; i < data.length; i++){
+                                keys = Object.keys(data[i]);
+                                for( j=0; j < keys.length; j++){
+                                        k = keys[j]
+                                        if ( ! isNaN(data[i][k] )){
+                                                data[i][k] = parseFloat(data[i][k]);
+                                        }
+                                }
+                        }
+                        this.orders=data
+                        this.emit("update","Initalized Order list")
+                        this.emit("orders",data)
+                }
+        });
+}
+
 
 module.exports = Account
 

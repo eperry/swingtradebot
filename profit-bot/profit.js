@@ -10,8 +10,11 @@ var Advisor       = require(__dirname+'/lib/Advisor.js');
 var Account        = require(__dirname+'/lib/Account.js');
 var sprintf        = require('sprintf')
 var columnify 	   = require('columnify')
-var jsdiff 	   = require('diff');
-var dryrun = true;
+var jsdiff 	   = require('diff')
+var figures	   = require("figures")
+var dryrun 	   = gdaxconfig.dryrun
+
+colors.setTheme(gdaxconfig.colorsTheme)
 
 // *****************
 var blessed 	   = require('blessed');
@@ -52,7 +55,7 @@ var toppos=0;
 	rightwindow = grid.set(r, c+20, 40, 30, blessed.Log,{ 
 		  content: '',
 		  tags: true,
-		  label: "dryrun "+ dryrun?"True":"False" ,
+		  label: dryrun?"DryRun True":"DryRun False" ,
 		  border: {
 		    type: 'line'
 		  },
@@ -80,7 +83,7 @@ screen.key(['c'], function(ch, key) {
 
 });
 
-screen.key(['u'], () => account.getAccount()) 
+screen.key(['u'], () => { ; account.getAccount()}) 
 
 
 /************************************************
@@ -91,16 +94,20 @@ setInterval(function (){
 },400);
 
 var Advice = new Advisor(gdaxconfig)
+Advice.debugwindow = leftwindow
 
 
 var account = new Account(gdaxconfig)
 account.connect();
 account.on("update", (data) => { 
+        leftwindow.insertBottom("Account update "+JSON.stringify(data,null,1))
+})
+account.on("account", (data) => { 
 	Advice.update("account",data)
-        //leftwindow.insertBottom("Account update "+JSON.stringify(data,null,1))
+        //leftwindow.insertBottom("Account account "+JSON.stringify(data,null,1))
 })
 account.on("message", (data) => {
-        leftwindow.insertBottom("Message "+JSON.stringify(data,null,1))
+        leftwindow.insertBottom("Account message "+JSON.stringify(data,null,1))
 })
 account.on("error", (data) => {
         leftwindow.insertBottom("error "+JSON.stringify(data,null,1))
@@ -110,15 +117,15 @@ Advice.monitor = setInterval(() => {
 	Advice.priceMonitor()
 },10000)
 Advice.on("buy", (data) => {
-        //leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
+ //       leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
 	account.placeOrder(data)
 })
 Advice.on("sell", (data) => {
-        //leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
+  //      leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
 	account.placeOrder(data)
 })
 Advice.on("message", (data) => {
-        leftwindow.insertBottom("Message "+JSON.stringify(data,null,1))
+        leftwindow.insertBottom("Advice Message "+JSON.stringify(data,null,1))
 })
 
 /***************************************************************
@@ -127,62 +134,96 @@ account.on("update", (data) =>{
 })
 ***************************************************************/
 var tf = new tickerFeed(gdaxconfig)
+tf.on("message",(data) => {
+	leftwindow.insertBottom(data)
+})
 tf.on("ticker", (data) =>{
 	Advice.update("ticker",data)
-        rightwindow.setContent(JSON.stringify(data.current,null,4));
-        rightwindow.insertBottom(sprintf("Advice Buy %.02f Sell %.02f", Advice.buy, Advice.ask).yellow);
+        //rightwindow.setContent(JSON.stringify(data.current,null,4));
+        rightwindow.setContent(sprintf("Advice Buy %.02f Sell %.02f", Advice.buy, Advice.ask).yellow);
         rightwindow.insertBottom(sprintf("Advice Buy size %.02f Sell size %.02f", Advice.buy_size, Advice.ask_size).yellow);
+	rightwindow.insertBottom("--------------")
 	if( account.accounts  && account.accounts.length > 0 ){
 		[ gdaxconfig.trade.buy_asset, 
 	  	  gdaxconfig.trade.sell_asset].forEach((ast) => {
 			a = account.accounts.find((d) => ast === d.currency )
-			rightwindow.insertBottom(sprintf("%s balance %.4f available: %.4f hold: %.4f",
+			let display = sprintf("%s balance %.4f available: %.4f hold: %.4f ",
 			    a.currency,
 			    a.balance,
 			    a.available,
-			    a.hold,
-			    )) // end rightwindow insert
+			    a.hold
+			    ) // end rightwindow insert
+			if ( a.currency == "USD" )
+				display += sprintf ("Size = %.4f", account.orders
+					.filter((o) => o.side === 'buy' )
+					.reduce((acc,cur) => { 
+						a = ( typeof acc.size !== 'undefined' ) ? acc.size : acc;
+						return parseFloat(a) + parseFloat(cur.size)
+					} ))
+			rightwindow.insertBottom(display)
         	}) // End Foreach
 	} // End if
-        uf.orders.filter((o) => "buy" === o.side ).forEach((o) => {	
-		rightwindow.insertBottom(sprintf("%s oid %s price %.2f",
-			o.side,
-			o.id,
-			o.price
-			).red)
-	})
-        uf.orders.filter((o) => "sell" === o.side ).forEach((o) => {	
-		rightwindow.insertBottom(sprintf("%s oid %s price %.2f",
-			o.side,
-			o.id,
-			o.price
-			).blue)
-	})
+	rightwindow.insertBottom("--------------")
+	let ts = "ticker"
+	//if ( typeof data.current side !== 'undefined'  && typeof data.current.last_size !== 'undefined' )
+	if ( data.current.side  && data.current.last_size )
+		ts = sprintf("ticker %s size %.2f (last price %.2f)",data.current.side,data.current.last_size,data.last.price)
+        account.orders
+	        .concat([ { side:"24 Open", price: data.current.open_24h }])
+	        .concat([ { side:"24 Low", price: data.current.low_24h }])
+	        .concat([ { side:"24 High", price: data.current.high_24h }])
+	        .concat([ { side: ts, price: data.current.price }])
+		.sort((a, b )=> { return Math.trunc(b.price*100) - Math.trunc(a.price*100) })
+		.forEach((o) => {	
+			let display = sprintf("%4s price %.2f", o.side, o.price)
+			if ( o.side === 'buy' ) display = colors.buy(display)
+			else if ( o.side === 'sell' ) display = colors.sell(display)
+			else if ( o.side.match('ticker') ){
+				if( o.price > data.last.price ) display = figures.arrowUp +"  "+ colors.yellow.underline(display)
+				else if (o.price == data.last.price ) display = figures.circle +"  "+ colors.yellow.underline(display)
+				else                            display = figures.arrowDown +"  "+ colors.yellow.underline(display)
+			}
+			rightwindow.insertBottom(display)
+		})
 }) // End On Ticker
 
 var uf = new userFeed(gdaxconfig)
+uf.on("orders", (data) => { 
+	if( data === 'undefined' ) leftwindow.insertBottom(data)
+	else Advice.update("orders",data)
+})
 uf.on("open", (data) => { 
 	account.getAccount();         
         //leftwindow.insertBottom("UF open "+JSON.stringify(data,null,1))
 })
 uf.on("sell", (data) => { 
 	Advice.update("filled",data); 
-	account.getAccount();         
         //leftwindow.insertBottom("UF sell "+JSON.stringify(data,null,1))
+	leftwindow.insertBottom( sprintf("%s price %s size %s",
+		data.side,
+		data.price,
+		data.size
+		).blue)
+	account.getAccount();         
 })
 uf.on("buy",  (data) => { 
 	Advice.update("filled",data)
-	account.getAccount();         
         //leftwindow.insertBottom("UF buy "+JSON.stringify(data,null,1))
+	leftwindow.insertBottom( sprintf("%s price %s size %s",
+		data.side,
+		data.price,
+		data.size
+		).red)
+	account.getAccount();         
 })
 uf.on(["match"], (data)=>{
-	account.getAccount();         
 	leftwindow.insertBottom( sprintf("Match %s price %s size %s",
 		data.side,
 		data.price,
 		data.size
 		).red)
 	Advice.update("match",data);
+	account.getAccount();         
 })
 uf.on("update", (data) =>{
 	leftwindow.insertBottom("UF update "+JSON.stringify(data,null,1))
