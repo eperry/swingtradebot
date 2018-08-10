@@ -114,6 +114,7 @@ account.on("error", (data) => {
 })
 Advice.debugwindow = leftwindow
 Advice.monitor = setInterval(() => {
+	account.getAccount();         
 	Advice.priceMonitor()
 },gdaxconfig.priceMonitorInterval)
 Advice.on("buy", (data) => {
@@ -180,13 +181,15 @@ tf.on("ticker", (data) =>{
 		.sort((a, b )=> { return Math.trunc(b.price*100) - Math.trunc(a.price*100) })
 		.forEach((o) => {	
 			let display = sprintf("%4s price %.2f", o.side, o.price)
-			if ( o.side === 'buy' ) display = colors.buy(display)+sprintf(" C %.2f 24 h %.2f o h %.2f"
+			if ( o.side === 'buy' ) display = colors.buy(display)+sprintf(" C %.2f 24 h %.2f l %.2f oh %.2f"
 								,(data.current.price - o.price )
 								,(data.current.high_24h - o.price )
+								,(data.current.low_24h - o.price )
 								,(data.current.open_24h - o.price ))
-			else if ( o.side === 'sell' ) display = colors.sell(display)+sprintf(" C %.2f 24 h %.2f o h %.2f"
+			else if ( o.side === 'sell' ) display = colors.sell(display)+sprintf(" C %.2f 24 h %.2f l %.2f oh %.2f"
 								,(o.price - data.current.price  )
 								,(o.price - data.current.high_24h )
+								,(o.price - data.current.low_24h )
 								,(o.price - data.current.open_24h ))
 			else if ( o.side.match('ticker') ){
 				display += sprintf(" %s",data.current.side)
@@ -215,7 +218,6 @@ uf.on("orders", (data) => {
 	else Advice.update("orders",data)
 })
 uf.on("open", (data) => { 
-	account.getAccount();         
         //leftwindow.insertBottom("UF open "+JSON.stringify(data,null,1))
 })
 uf.on("sell", (data) => { 
@@ -226,7 +228,6 @@ uf.on("sell", (data) => {
 		data.price,
 		data.size
 		).blue)
-	account.getAccount();         
 })
 uf.on("buy",  (data) => { 
 	Advice.update("filled",data)
@@ -236,7 +237,6 @@ uf.on("buy",  (data) => {
 		data.price,
 		data.size
 		).red)
-	account.getAccount();         
 })
 uf.on(["match"], (data)=>{
 	leftwindow.insertBottom( sprintf("Match %s price %s size %s",
@@ -245,7 +245,6 @@ uf.on(["match"], (data)=>{
 		data.size
 		).red)
 	Advice.update("match",data);
-	account.getAccount();         
 })
 uf.on("update", (data) =>{
 	leftwindow.insertBottom("UF update "+JSON.stringify(data,null,1))

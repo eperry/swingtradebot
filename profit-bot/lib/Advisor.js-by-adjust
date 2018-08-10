@@ -82,39 +82,35 @@ Advisor.prototype.update = function(type, data) {
 	this.calculate()
 }
 
-Advisor.prototype.priceCheck = function(price, increment){
-	if ( typeof this.orders === 'undefined' ) { console.log('pc done') ;return price}
-	var ord = this.orders.find((or)  => { console.log(or.price+" "+ price );or.price == price }) 
-	if ( ord === 'undefined' ) {
-		this.emit("message","Advisor Price Check: Price "+price+" Increment "+increment);
-		return priceCheck(price+increment,increment)
-	}else{
-	//	this.emit("message","Advisor Price Check: Found Price "+price+" Increment "+increment);
-		return price
-	}
-}
 Advisor.prototype.calculate = function(){
+	function priceCheck(price, increment){
+		if( typeof this.debugwindow !== 'undefined' ) debugwindow.insertBottom("Advisor Price Check: Price "+price+" Increment "+increment);
+		if ( typeof this.orders !== 'undefined' && this.orders
+			.find((or)  => { or.price == price }) === 'undefined' ) {
+			return priceCheck(price+increment,increment)
+		}else
+			return price
+	}
         if( this.tickerFeed.current 
          && this.tickerFeed.last  
          && this.sellAssetBalance 
          && this.buyAssetBalance  
 	 ){
-                var simplebid = Math.trunc((this.tickerFeed.current.best_bid - this.gdaxconfig.bidAdjustment)*100 ) /100
-                var simpleask = Math.trunc((this.tickerFeed.current.best_ask + this.gdaxconfig.askAdjustment)*100 ) /100
-                if ( simpleask < this.lastbuy ) Math.trunc(( this.lastbuy + this.gdaxconfig.askAdjustment )*100   ) /100
+                var simplebid = Math.trunc((this.tickerFeed.current.best_bid - this.gdaxconfig.bidAdjustment)*100) /100
+                var simpleask = Math.trunc((this.tickerFeed.current.best_ask + this.gdaxconfig.askAdjustment)*100 )/100
+                if ( simpleask < this.lastbuy ) Math.trunc(( this.lastbuy + this.gdaxconfig.askAdjustment )*100    )/100
 		// ****************************************
 		// Check for over lap price
 		// ****************************************
-                this.buy = this.tickerFeed.current.low_24h + (( this.tickerFeed.current.best_bid - this.tickerFeed.current.low_24h  )*.5)
-                this.ask = this.tickerFeed.current.high_24h - (( this.tickerFeed.current.high_24h - this.tickerFeed.current.best_ask )*.5)
-		if ( this.buy > this.tickerFeed.current.best_bid ) this.buy = this.tickerFeed.current.low_24h
-		if ( this.ask < this.tickerFeed.current.best_ask  ) this.ask = this.tickerFeed.current.high_24h
+                this.buy = priceCheck(simplebid, (.01*-1) )
+                this.ask = priceCheck(simpleask, (.01)    )
                 as = this.sellAssetBalance.available
 		as = as > this.gdaxconfig.maxOrderSize ? this.gdaxconfig.maxOrderSize: as
                 bs = this.buyAssetBalance.available / this.buy
 		bs = bs > this.gdaxconfig.maxOrderSize ? this.gdaxconfig.maxOrderSize: bs
                 this.ask_size = Math.trunc(as*100)/100
                 this.buy_size = Math.trunc(bs*100)/100
+		
         }
 }
 
