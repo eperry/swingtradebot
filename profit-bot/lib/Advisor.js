@@ -96,20 +96,20 @@ Advisor.prototype.calculate = function(){
          && this.sellAssetBalance 
          && this.buyAssetBalance  
 	 ){
-                var simplebid = ((this.tickerFeed.current.best_bid - this.gdaxconfig.bidAdjustment)*100) /100
-                var simpleask = ((this.tickerFeed.current.best_ask + this.gdaxconfig.askAdjustment)*100 )/100
-                if ( simpleask < this.lastbuy ) (( this.lastbuy + this.gdaxconfig.askAdjustment )*100    )/100
+                var simplebid = Math.trunc((this.tickerFeed.current.best_bid - this.gdaxconfig.bidAdjustment)*100) /100
+                var simpleask = Math.trunc((this.tickerFeed.current.best_ask + this.gdaxconfig.askAdjustment)*100 )/100
+                if ( simpleask < this.lastbuy ) Math.trunc(( this.lastbuy + this.gdaxconfig.askAdjustment )*100    )/100
 		// ****************************************
 		// Check for over lap price
 		// ****************************************
                 this.buy = priceCheck(simplebid, (.01*-1) )
                 this.ask = priceCheck(simpleask, (.01)    )
-                as = Math.trunc(this.sellAssetBalance.available*100)/100 ;
+                as = this.sellAssetBalance.available
 		as = as > this.gdaxconfig.maxOrderSize ? this.gdaxconfig.maxOrderSize: as
-                bs = Math.trunc((this.buyAssetBalance.available / this.buy)*100 )/100  ;
+                bs = this.buyAssetBalance.available / this.buy
 		bs = bs > this.gdaxconfig.maxOrderSize ? this.gdaxconfig.maxOrderSize: bs
-                this.ask_size = as
-                this.buy_size = bs
+                this.ask_size = Math.trunc(as*100)/100
+                this.buy_size = Math.trunc(bs*100)/100
 		
         }
 }

@@ -115,7 +115,7 @@ account.on("error", (data) => {
 Advice.debugwindow = leftwindow
 Advice.monitor = setInterval(() => {
 	Advice.priceMonitor()
-},10000)
+},gdaxconfig.priceMonitorInterval)
 Advice.on("buy", (data) => {
  //       leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
 	account.placeOrder(data)
@@ -140,8 +140,11 @@ tf.on("message",(data) => {
 tf.on("ticker", (data) =>{
 	Advice.update("ticker",data)
         //rightwindow.setContent(JSON.stringify(data.current,null,4));
-        rightwindow.setContent(sprintf("Advice Buy %.02f Sell %.02f", Advice.buy, Advice.ask).yellow);
-        rightwindow.insertBottom(sprintf("Advice Buy size %.02f Sell size %.02f", Advice.buy_size, Advice.ask_size).yellow);
+        rightwindow.setContent(sprintf("Advice Buy %.2f Sell %.2f"
+						,Advice.buy
+						,Advice.ask
+					).yellow);
+        rightwindow.insertBottom(sprintf("Advice Buy size %.2f Sell size %.2f", Advice.buy_size, Advice.ask_size).yellow);
 	rightwindow.insertBottom("--------------")
 	if( account.accounts  && account.accounts.length > 0 ){
 		[ gdaxconfig.trade.buy_asset, 
@@ -153,35 +156,54 @@ tf.on("ticker", (data) =>{
 			    a.available,
 			    a.hold
 			    ) // end rightwindow insert
-			if ( a.currency == "USD" )
-				display += sprintf ("Size = %.4f", account.orders
-					.filter((o) => o.side === 'buy' )
-					.reduce((acc,cur) => { 
-						a = ( typeof acc.size !== 'undefined' ) ? acc.size : acc;
-						return parseFloat(a) + parseFloat(cur.size)
-					} ))
+			if ( a.currency == "USD" ){
+				var s = account.orders.filter((o) => o.side === 'buy' )
+				ss = 0.00	
+			        for ( i=0; i < s.length; i++) {
+					ss += s[i].size
+				}
+				display += sprintf ("Size = %s",ss)
+			}
 			rightwindow.insertBottom(display)
         	}) // End Foreach
 	} // End if
 	rightwindow.insertBottom("--------------")
 	let ts = "ticker"
 	//if ( typeof data.current side !== 'undefined'  && typeof data.current.last_size !== 'undefined' )
-	if ( data.current.side  && data.current.last_size )
-		ts = sprintf("ticker %s size %.2f (last price %.2f)",data.current.side,data.current.last_size,data.last.price)
         account.orders
 	        .concat([ { side:"24 Open", price: data.current.open_24h }])
 	        .concat([ { side:"24 Low", price: data.current.low_24h }])
 	        .concat([ { side:"24 High", price: data.current.high_24h }])
-	        .concat([ { side: ts, price: data.current.price }])
+	        .concat([ { side: "ticker", price: data.current.price }])
+		.concat([ { side: "ABuy",   price:  Advice.buy }])
+		.concat([ { side: "ASell",  price:  Advice.ask }])
 		.sort((a, b )=> { return Math.trunc(b.price*100) - Math.trunc(a.price*100) })
 		.forEach((o) => {	
 			let display = sprintf("%4s price %.2f", o.side, o.price)
-			if ( o.side === 'buy' ) display = colors.buy(display)
-			else if ( o.side === 'sell' ) display = colors.sell(display)
+			if ( o.side === 'buy' ) display = colors.buy(display)+sprintf(" C %.2f 24 h %.2f o h %.2f"
+								,(data.current.price - o.price )
+								,(data.current.high_24h - o.price )
+								,(data.current.open_24h - o.price ))
+			else if ( o.side === 'sell' ) display = colors.sell(display)+sprintf(" C %.2f 24 h %.2f o h %.2f"
+								,(o.price - data.current.price  )
+								,(o.price - data.current.high_24h )
+								,(o.price - data.current.open_24h ))
 			else if ( o.side.match('ticker') ){
+				display += sprintf(" %s",data.current.side)
 				if( o.price > data.last.price ) display = figures.arrowUp +"  "+ colors.yellow.underline(display)
 				else if (o.price == data.last.price ) display = figures.circle +"  "+ colors.yellow.underline(display)
 				else                            display = figures.arrowDown +"  "+ colors.yellow.underline(display)
+				if ( data.current.side  && data.current.last_size ){
+					display += "\n\t "
+					display += colors
+						.yellow
+						.underline(
+							sprintf("last price %.2f %s",
+								data.last.price,
+								data.last.side
+							)
+						)
+				}
 			}
 			rightwindow.insertBottom(display)
 		})
