@@ -96,26 +96,30 @@ setInterval(function (){
 var Advice = new Advisor(gdaxconfig)
 Advice.debugwindow = leftwindow
 
-
 var account = new Account(gdaxconfig)
-account.connect();
-account.on("update", (data) => { 
-        leftwindow.insertBottom("Account update "+JSON.stringify(data,null,1))
-})
+account.debug=false
 account.on("account", (data) => { 
 	Advice.update("account",data)
         //leftwindow.insertBottom("Account account "+JSON.stringify(data,null,1))
 })
 account.on("message", (data) => {
-        leftwindow.insertBottom("Account message "+JSON.stringify(data,null,1))
+        leftwindow.insertBottom("Account message "+data)
 })
 account.on("error", (data) => {
-        leftwindow.insertBottom("error "+JSON.stringify(data,null,1))
+        leftwindow.insertBottom("Account error "+JSON.stringify(data,null,1))
 })
+account.on("debug", (data) => {
+        leftwindow.insertBottom("Account debug "+data)
+})
+account.connect();
+//*********************************************************************************************
+// Initialize Advice
+//*********************************************************************************************
 Advice.debugwindow = leftwindow
 Advice.monitor = setInterval(() => {
 	account.getAccount();         
 	Advice.priceMonitor()
+	Advice.orderMonitor()
 },gdaxconfig.priceMonitorInterval)
 Advice.on("buy", (data) => {
  //       leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
@@ -128,25 +132,20 @@ Advice.on("sell", (data) => {
 Advice.on("message", (data) => {
         leftwindow.insertBottom("Advice Message "+JSON.stringify(data,null,1))
 })
-
-/***************************************************************
-account.on("update", (data) =>{
-	leftwindow.insertBottom(JSON.stringify(data,null,4).red)
+Advice.on("suggestCancel",(data) => {
+	//leftwindow.insertBottom("cancel Advice"+JSON.stringify(data))
+	account.cancelOrders(data);
 })
-***************************************************************/
+//*********************************************************************************************
+// Initialize Ticker Feed
+//*********************************************************************************************
 var tf = new tickerFeed(gdaxconfig)
 tf.on("message",(data) => {
-	leftwindow.insertBottom(data)
+	leftwindow.insertBottom("TickerFeed "+data)
 })
 tf.on("ticker", (data) =>{
 	Advice.update("ticker",data)
-        //rightwindow.setContent(JSON.stringify(data.current,null,4));
-        rightwindow.setContent(sprintf("Advice Buy %.2f Sell %.2f"
-						,Advice.buy
-						,Advice.ask
-					).yellow);
-        rightwindow.insertBottom(sprintf("Advice Buy size %.2f Sell size %.2f", Advice.buy_size, Advice.ask_size).yellow);
-	rightwindow.insertBottom("--------------")
+	rightwindow.setContent("")
 	if( account.accounts  && account.accounts.length > 0 ){
 		[ gdaxconfig.trade.buy_asset, 
 	  	  gdaxconfig.trade.sell_asset].forEach((ast) => {
@@ -212,9 +211,12 @@ tf.on("ticker", (data) =>{
 		})
 }) // End On Ticker
 
+//*********************************************************************************************
+// Initialize UserFeed
+//*********************************************************************************************
 var uf = new userFeed(gdaxconfig)
 uf.on("orders", (data) => { 
-	if( data === 'undefined' ) leftwindow.insertBottom(data)
+	if( data === 'undefined' ) leftwindow.insertBottom("UserFeed Orders "+data)
 	else Advice.update("orders",data)
 })
 uf.on("open", (data) => { 
@@ -222,8 +224,7 @@ uf.on("open", (data) => {
 })
 uf.on("sell", (data) => { 
 	Advice.update("filled",data); 
-        //leftwindow.insertBottom("UF sell "+JSON.stringify(data,null,1))
-	leftwindow.insertBottom( sprintf("%s price %s size %s",
+	leftwindow.insertBottom( sprintf("UserFeed on %s price %s size %s",
 		data.side,
 		data.price,
 		data.size
@@ -231,23 +232,22 @@ uf.on("sell", (data) => {
 })
 uf.on("buy",  (data) => { 
 	Advice.update("filled",data)
-        //leftwindow.insertBottom("UF buy "+JSON.stringify(data,null,1))
-	leftwindow.insertBottom( sprintf("%s price %s size %s",
+	leftwindow.insertBottom( sprintf("UserFeed on %s price %s reason %s",
 		data.side,
 		data.price,
-		data.size
+		data.reason
 		).red)
 })
 uf.on(["match"], (data)=>{
-	leftwindow.insertBottom( sprintf("Match %s price %s size %s",
+	leftwindow.insertBottom( sprintf("UserFeed Match on %s price %s size %s",
 		data.side,
 		data.price,
 		data.size
-		).red)
-	Advice.update("match",data);
+		).green)
+	//Advice.update("match",data);
 })
 uf.on("update", (data) =>{
-	leftwindow.insertBottom("UF update "+JSON.stringify(data,null,1))
+	leftwindow.insertBottom("UserFeed update "+JSON.stringify(data,null,1))
 })
 uf.connect()
 tf.connect()

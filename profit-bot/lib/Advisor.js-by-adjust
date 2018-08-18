@@ -31,6 +31,10 @@ Advisor = function (gdaxconfig) {
 
 
 util.inherits(Advisor, EventEmitter);
+Advisor.prototype.orderMonitor = function(){
+        //this.emit("suggestCancel", { "above": this.tickerFeed.current.high_24h, "below": this.tickerFeed.current.low_24h } )
+}
+
 
 Advisor.prototype.priceMonitor = function(){
 	/******************

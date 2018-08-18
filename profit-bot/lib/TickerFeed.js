@@ -23,6 +23,7 @@ TickerFeed = function (gdaxconfig) {
 util.inherits(TickerFeed, EventEmitter);
 
 TickerFeed.prototype.connect = function (){
+	this.emit("message","Connecting") 
 	this.authedClient = new Gdax.AuthenticatedClient(
 			this.gdaxconfig.key, 
 			this.gdaxconfig.secret, 

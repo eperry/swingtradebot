@@ -17,11 +17,13 @@ Account = function (gdaxconfig) {
         this.accounts     = {}
         this.gdaxconfig   = gdaxconfig;
         this.authedClient = undefined
+	this.debug = false
 }
 
 util.inherits(Account, EventEmitter);
 
 Account.prototype.connect = function (){
+        if (this.debug) this.emit("message","Connecting")
 	this.authedClient = new Gdax.AuthenticatedClient(
 		this.gdaxconfig.key,
 		this.gdaxconfig.secret,
@@ -32,9 +34,10 @@ Account.prototype.connect = function (){
 		);
 	this.getAccount()
 }
-Account.prototype.getAccount = function (){
+Account.prototype.getAccount = async function (){
+        //this.emit("update","Update Account balance's")
 	this.getOrders();
-	this.authedClient.getAccounts( ( err, resp, data ) =>{
+	await this.authedClient.getAccounts( ( err, resp, data ) =>{
 	if(err){
 	 	this.emit("error",sprintf("Account update error: "+err));
 		return;
@@ -44,11 +47,18 @@ Account.prototype.getAccount = function (){
 		for (i = 0; i < key.length;i++)
 			if ( ! isNaN(data[j][key[i]] ))  data[j][key[i]] = parseFloat(data[j][key[i]]);
 	   }
+	   if (this.debug) this.emit("debug","getAccount refresh ")
 	   this.emit("account",data)
 	   this.accounts = data
 	})
 }
-Account.prototype.placeOrder = function (orderParams) {
+Account.prototype.placeOrder = async function (orderParams) {
+	if ( this.orders.find((o) => o.price == orderParams.price) === 'undefined' ) {
+        	this.emit("message",sprintf("ABORT %s price %s already exists",
+			orderParams.side,
+			orderParams.price
+			))
+	}
 	if(  this.gdaxconfig.dryrun ){
         	this.emit("message",sprintf("DRYRUN %s price %s Size: %s",
 			orderParams.side,
@@ -65,7 +75,7 @@ Account.prototype.placeOrder = function (orderParams) {
                         ))
 		return;
 	}else{
- 		this.authedClient.placeOrder(orderParams,(err,resp,data) => {
+ 		await this.authedClient.placeOrder(orderParams,(err,resp,data) => {
 			this.emit("message",sprintf("a %s price %.2f Size: %.2f",
 				orderParams.side,
 				orderParams.price,
@@ -78,10 +88,41 @@ Account.prototype.placeOrder = function (orderParams) {
         } // End Else
         this.getAccount();
 }
-Account.prototype.getOrders = function (){
-        this.authedClient.getOrders((err, response, data)=>{
+Account.prototype.cancelOrders = async function (advice) {
+
+        var co = this.orders.filter((o,index,array) => { 
+			//this.emit("update",sprintf("o.p %s >= above %s or o.p %s below %s", o.price , advice.above , o.price , advice.below ))
+			//this.emit("update",sprintf("match %s", o.price >= advice.above || o.price <= advice.below ))
+			if ( typeof advice.above === 'undefined'  
+				&& o.price >= advice.above )
+				return o.price >= advice.above
+			if ( typeof advice.below === 'undefined'  
+				&&  o.price <= advice.below ) 
+				return o.price <= advice.below 
+	        })
+
+	//this.emit("update",sprintf("count %s", co.length ))
+	for ( i = 0; i < co.length; i++ ){
+		var o = co[i]
+		if ( this.gdaxconfig.dryrun ){
+			this.emit("message",sprintf("Cancel %s %.2f",o.id,o.price)); 
+			await this.authedClient.cancelOrder(o.id,(err,resp,data) => {
+				if(err) {
+					this.emit("error",err)
+					return;
+				}else{
+					this.getAccount();
+				}
+			})
+		} else {
+			this.emit("message",sprintf("DRYRUN: Cancel %s %.2f",o.id,o.price)); 
+		}
+	}
+}
+Account.prototype.getOrders = async function (){
+        await this.authedClient.getOrders((err, response, data)=>{
                 if(err) {
-                        this.emit("update",err)
+                        this.emit("error",err)
                         return;
                 }else{
                         for( i = 0; i < data.length; i++){
@@ -94,7 +135,7 @@ Account.prototype.getOrders = function (){
                                 }
                         }
                         this.orders=data
-                        this.emit("update","Initalized Order list")
+                        if (this.debug ) this.emit("debug","Get Order count "+data.length)
                         this.emit("orders",data)
                 }
         });

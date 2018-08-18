@@ -54,7 +54,7 @@ UserFeed.prototype.connect = function (){
 				this.emit(data.side,data)
 			}else
 			if ( data.type === 'open' ){
-				if ( typeof data.id === 'undefined' ) data.id = data.order_id
+				if ( typeof data.id === 'undefined' )   data.id   = data.order_id
 				if ( typeof data.size === 'undefined' ) data.size = data.remaining_size
 				this.emit("open",data)
 			}
