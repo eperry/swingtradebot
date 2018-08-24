@@ -109,12 +109,14 @@ Advisor.prototype.calculate = function(){
 		// ****************************************
 		// Check for over lap price
 		// ****************************************
-                this.buy = this.tickerFeed.current.low_24h + (( this.tickerFeed.current.best_bid - this.tickerFeed.current.low_24h  )*.5)
-                this.ask = this.tickerFeed.current.high_24h - (( this.tickerFeed.current.high_24h - this.tickerFeed.current.best_ask )*.5)
+                this.buy = this.tickerFeed.current.low_24h + 
+			(( this.tickerFeed.current.best_bid - this.tickerFeed.current.low_24h  )*this.gdaxconfig.bidAdjustment)
+                this.ask = this.tickerFeed.current.high_24h - 
+			(( this.tickerFeed.current.high_24h - this.tickerFeed.current.best_ask )*this.gdaxconfig.askAdjustment)
 		this.ask = Math.trunc(this.ask *100)/100
 		this.buy = Math.trunc(this.buy *100)/100
-		if ( this.buy > this.tickerFeed.current.best_bid ) this.buy = this.tickerFeed.current.low_24h
-		if ( this.ask < this.tickerFeed.current.best_ask  ) this.ask = this.tickerFeed.current.high_24h
+		//if ( this.buy > this.tickerFeed.current.best_bid ) this.buy = this.tickerFeed.current.low_24h
+		//if ( this.ask < this.tickerFeed.current.best_ask  ) this.ask = this.tickerFeed.current.high_24h
                 as = this.sellAssetBalance.available
 		as = as > this.gdaxconfig.maxOrderSize ? this.gdaxconfig.maxOrderSize: as
                 bs = this.buyAssetBalance.available / this.buy

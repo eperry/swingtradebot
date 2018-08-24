@@ -1,1 +1,1 @@
-Advisor.js-HighLow
+Advisor.js-by-adjust
