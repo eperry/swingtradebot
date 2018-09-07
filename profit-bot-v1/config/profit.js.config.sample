@@ -1,0 +1,20 @@
+var config = {
+   dryrun: true,
+   apiURI:"https://api.gdax.com",
+   wsURI:"wss://ws-feed.gdax.com",
+   passphrase: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+   key: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+   secret: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+   "trade":{
+        buy_asset: "LTC",
+        sell_asset: "USD",
+   },
+   maxOrderSize:   2,
+   minOrderSize:  .1,
+   askAdjustment: .5,
+   bidAdjustment: .1,
+   dryrun: false
+
+}
+module.exports = config;
+	 

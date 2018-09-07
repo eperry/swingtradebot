@@ -1,0 +1,29 @@
+{
+  "name": "eth-alert",
+  "version": "1.0.3",
+  "description": "swingbot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ethereum",
+    "gdax",
+    "cryptocurrency",
+    "bot"
+  ],
+  "author": "eperry",
+  "dependencies": {
+    "blessed-contrib": "github:eperry/blessed-contrib",
+    "circular-buffer": "^1.0.2",
+    "colors": "^1.3.0",
+    "columnify": "^1.5.4",
+    "commander": "^2.15.1",
+    "dateformat": "^3.0.3",
+    "diff": "^3.5.0",
+    "figures": "^2.0.0",
+    "gdax": "github:coinbase/gdax-node",
+    "numeral": "^2.0.6",
+    "sprintf": "^0.1.5"
+  }
+}
