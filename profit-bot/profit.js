@@ -3,17 +3,37 @@ var Gdax           = require('gdax');
 var colors     	   = require('colors');
 var path       	   = require('path');
 var configfilename = path.basename(__filename);
-var gdaxconfig     = require(__dirname+'/config/'+configfilename+'.config')
 var userFeed       = require(__dirname+'/lib/UserFeed.js');
 var tickerFeed     = require(__dirname+'/lib/TickerFeed.js');
-var Advisor       = require(__dirname+'/lib/Advisor.js');
 var Account        = require(__dirname+'/lib/Account.js');
 var sprintf        = require('sprintf')
 var columnify 	   = require('columnify')
 var jsdiff 	   = require('diff')
 var figures	   = require("figures")
-var dryrun 	   = gdaxconfig.dryrun
 
+// *****************
+// Process CLI
+// *****************
+var Advisor       = null
+var gdaxconfig     = null
+
+for ( i = 2; i < process.argv.length; i++){
+	if ( process.argv[i].match(/--advisor/)){
+		let adv = process.argv[i].split('=')[1]
+		Advisor = require(__dirname+'/lib/'+adv);
+	}else if ( process.argv[i].match(/--config/)){
+		console.log(process.argv[i])
+		let c = process.argv[i].split('=')[1]
+		gdaxconfig = require(c);
+	}
+}
+if (Advisor == null ||
+    gdaxconfig == null ) {
+	console.error("--advisor=<advisor class>")
+	console.error("--config=<file>")
+	process.exit(1);
+}
+var dryrun 	   = gdaxconfig.dryrun
 colors.setTheme(gdaxconfig.colorsTheme)
 
 // *****************

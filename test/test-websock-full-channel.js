@@ -1,8 +1,8 @@
 var gdax = require('gdax');
 var gdaxConfig = require('../config/gdax.config')
 var direction=0;
-//websocket = new gdax.WebsocketClient(['BTC-USD'],gdaxConfig.apiURI,null,{ 'channels':['level2']});
-websocket = new gdax.WebsocketClient(['BTC-USD'],"wss://ws-feed.gdax.com",null,{ 'channels': ['full']});
+//websocket = new gdax.WebsocketClient(['LTC-USD'],gdaxConfig.apiURI,null,{ 'channels':['level2']});
+websocket = new gdax.WebsocketClient(['LTC-USD'],"wss://ws-feed.gdax.com",null,{ 'channels': ['full']});
 var snapshots = {
 	asks: {},
 	bids: {}	

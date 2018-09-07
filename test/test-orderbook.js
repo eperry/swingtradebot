@@ -1,7 +1,7 @@
 var Gdax = require('gdax');
 var gdaxConfig = require('../config/gdax.config')
-const orderbookSync = new Gdax.OrderbookSync(['BTC-USD'],gdaxConfig.apiURI);
-var ob = orderbookSync.books["BTC-USD"].state();
+const orderbookSync = new Gdax.OrderbookSync(['LTC-USD'],gdaxConfig.apiURI);
+var ob = orderbookSync.books["LTC-USD"].state();
 var count=0
 setInterval(function (){ 
 	console.log("--------------"+count++)
