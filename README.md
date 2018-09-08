@@ -8,13 +8,17 @@ I have created a new "Profitbot" which does this, I need some time to document i
 real quick install/test
 
 DO NOT USE THIS TO MAKE MONEY - USE AT YOUR OWN RISK
+```
 cd profitbot
 npm install
 cp config/profit.js-v5.sample sample config/profit.js-v5.conf 
+```
 # Edit the gdax.conf with your API Key
-BUY SELL BOT -- DO NOT USE AGAINST REAL MONEY/COINS
-node ./profit-v5.js
 
+BUY SELL BOT -- DO NOT USE AGAINST REAL MONEY/COINS
+```
+node ./profit-v5.js
+```
 DO NOT USE THIS TO MAKE MONEY - While the concept is sound of buy high sell low there are many conditions which it can loose money. Especially during Huge swings of prices
 
 
