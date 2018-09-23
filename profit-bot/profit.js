@@ -4,7 +4,6 @@ var colors     	   = require('colors');
 var path       	   = require('path');
 var configfilename = path.basename(__filename);
 var userFeed       = require(__dirname+'/lib/UserFeed.js');
-var tickerFeed     = require(__dirname+'/lib/TickerFeed.js');
 var Account        = require(__dirname+'/lib/Account.js');
 var sprintf        = require('sprintf')
 var columnify 	   = require('columnify')
@@ -113,14 +112,24 @@ setInterval(function (){
 	screen.render();
 },400);
 
-var Advice = new Advisor(gdaxconfig)
-Advice.debugwindow = leftwindow
 
 var account = new Account(gdaxconfig)
 account.debug=false
 account.on("account", (data) => { 
-	Advice.update("account",data)
-        //leftwindow.insertBottom("Account account "+JSON.stringify(data,null,1))
+	/*********************
+	[{
+        "id": "71452118-efc7-4cc4-8780-a5e22d4baa53",
+        "currency": "BTC",
+        "balance": "0.0000000000000000",
+        "available": "0.0000000000000000",
+        "hold": "0.0000000000000000",
+        "profile_id": "75da88c5-05bf-4f54-bc85-5c775bd68254"
+    	}]
+	***********************/
+	var coinbal = data.filter((a) => a.currency === gdaxconfig.buyAsset )
+	var dollarbal = data.filter((a) => a.currency === gdaxconfig.sellAsset )
+	Advice.accountBalance.coin= coinbal
+	Advice.accountBalance.dollar= dollarbal 
 })
 account.on("message", (data) => {
         leftwindow.insertBottom("Account message "+data)
@@ -135,37 +144,39 @@ account.connect();
 //*********************************************************************************************
 // Initialize Advice
 //*********************************************************************************************
+var Advice = new Advisor(gdaxconfig)
 Advice.debugwindow = leftwindow
-Advice.monitor = setInterval(() => {
-	account.getAccount();         
-	Advice.priceMonitor()
-	Advice.orderMonitor()
-},gdaxconfig.priceMonitorInterval)
+
 Advice.on("buy", (data) => {
- //       leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
 	account.placeOrder(data)
 })
 Advice.on("sell", (data) => {
-  //      leftwindow.insertBottom("Advice "+data.side+"\n"+JSON.stringify(data,null,1))
 	account.placeOrder(data)
 })
 Advice.on("message", (data) => {
         leftwindow.insertBottom("Advice Message "+JSON.stringify(data,null,1))
 })
 Advice.on("suggestCancel",(data) => {
-	//leftwindow.insertBottom("cancel Advice"+JSON.stringify(data))
 	account.cancelOrders(data);
 })
+Advice.connect()
 //*********************************************************************************************
 // Initialize Ticker Feed
 //*********************************************************************************************
-var tf = new tickerFeed(gdaxconfig)
-tf.on("message",(data) => {
-	leftwindow.insertBottom("TickerFeed "+data)
-})
-tf.on("ticker", (data) =>{
-	Advice.update("ticker",data)
-	rightwindow.setContent("")
+screenUpdate = setInterval(() => {
+	var ticker = Advice.tickerFeed
+	rightwindow.setContent(sprintf("%s",new Date()))
+	/**********************************************************
+	rightwindow.insertBottom("--------------")
+	rightwindow.insertBottom(sprintf("SIZE Moving Average = %.4f Forcast = %.4f",
+						Advice.marketFeed.movingAvg.size.movingAverage(),
+						Advice.marketFeed.movingAvg.size.forecast()))
+	rightwindow.insertBottom("--------------")
+	rightwindow.insertBottom(sprintf("Price Moving Average = %.2f Forcast = %.2f",
+						Advice.marketFeed.movingAvg.price.movingAverage(),
+						Advice.marketFeed.movingAvg.price.forecast()))
+	***********************************************************/
+	rightwindow.insertBottom("--------------")
 	if( account.accounts  && account.accounts.length > 0 ){
 		[ gdaxconfig.trade.buy_asset, 
 	  	  gdaxconfig.trade.sell_asset].forEach((ast) => {
@@ -189,47 +200,48 @@ tf.on("ticker", (data) =>{
 	} // End if
 	rightwindow.insertBottom("--------------")
 	let ts = "ticker"
-	//if ( typeof data.current side !== 'undefined'  && typeof data.current.last_size !== 'undefined' )
+	//rightwindow.insertBottom(JSON.stringify(ticker)+"")
+	//if ( "current" in ticker ) 
         account.orders
-	        .concat([ { side:"24 Open", price: data.current.open_24h }])
-	        .concat([ { side:"24 Low", price: data.current.low_24h }])
-	        .concat([ { side:"24 High", price: data.current.high_24h }])
-	        .concat([ { side: "ticker", price: data.current.price }])
-		.concat([ { side: "ABuy",   price:  Advice.buy }])
-		.concat([ { side: "ASell",  price:  Advice.ask }])
+	        .concat([ { side:"24 Open", price: ticker.current.open_24h }])
+	        .concat([ { side:"24 Low", price:  ticker.current.low_24h }])
+	        .concat([ { side:"24 High", price: ticker.current.high_24h }])
+	        .concat([ { side: "ticker", price: ticker.current.price }])
+		//.concat([ { side: "ABuy",   price:  Advice.buy }])
+		//.concat([ { side: "ASell",  price:  Advice.ask }])
 		.sort((a, b )=> { return Math.trunc(b.price*100) - Math.trunc(a.price*100) })
 		.forEach((o) => {	
 			let display = sprintf("%4s price %.2f", o.side, o.price)
 			if ( o.side === 'buy' ) display = colors.buy(display)+sprintf(" C %.2f 24 h %.2f l %.2f oh %.2f"
-								,(data.current.price - o.price )
-								,(data.current.high_24h - o.price )
-								,(data.current.low_24h - o.price )
-								,(data.current.open_24h - o.price ))
+								,(ticker.current.price - o.price )
+								,(ticker.current.high_24h - o.price )
+								,(ticker.current.low_24h - o.price )
+								,(ticker.current.open_24h - o.price ))
 			else if ( o.side === 'sell' ) display = colors.sell(display)+sprintf(" C %.2f 24 h %.2f l %.2f oh %.2f"
-								,(o.price - data.current.price  )
-								,(o.price - data.current.high_24h )
-								,(o.price - data.current.low_24h )
-								,(o.price - data.current.open_24h ))
+								,(o.price - ticker.current.price  )
+								,(o.price - ticker.current.high_24h )
+								,(o.price - ticker.current.low_24h )
+								,(o.price - ticker.current.open_24h ))
 			else if ( o.side.match('ticker') ){
-				display += sprintf(" %s",data.current.side)
-				if( o.price > data.last.price ) display = figures.arrowUp +"  "+ colors.yellow.underline(display)
-				else if (o.price == data.last.price ) display = figures.circle +"  "+ colors.yellow.underline(display)
+				display += sprintf(" %s",ticker.current.side)
+				if( o.price > ticker.last.price ) display = figures.arrowUp +"  "+ colors.yellow.underline(display)
+				else if (o.price == ticker.last.price ) display = figures.circle +"  "+ colors.yellow.underline(display)
 				else                            display = figures.arrowDown +"  "+ colors.yellow.underline(display)
-				if ( data.current.side  && data.current.last_size ){
+				if ( ticker.current.side  && ticker.current.last_size ){
 					display += "\n\t "
 					display += colors
 						.yellow
 						.underline(
 							sprintf("last price %.2f %s",
-								data.last.price,
-								data.last.side
+								ticker.last.price,
+								ticker.last.side
 							)
 						)
 				}
 			}
 			rightwindow.insertBottom(display)
 		})
-}) // End On Ticker
+},500) // End On interval
 
 //*********************************************************************************************
 // Initialize UserFeed
@@ -270,6 +282,4 @@ uf.on("update", (data) =>{
 	leftwindow.insertBottom("UserFeed update "+JSON.stringify(data,null,1))
 })
 uf.connect()
-tf.connect()
-
 

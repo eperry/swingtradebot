@@ -23,6 +23,7 @@
     "diff": "^3.5.0",
     "figures": "^2.0.0",
     "gdax": "github:coinbase/gdax-node",
+    "moving-average": "^1.0.0",
     "numeral": "^2.0.6",
     "sprintf": "^0.1.5"
   }
