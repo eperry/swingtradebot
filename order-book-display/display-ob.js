@@ -69,7 +69,7 @@ var toppos=0;
 	     , height: '30%'
 	     , border: {type: "line", fg: "cyan"}
 	     , columnSpacing: 10 //in chars
-	     , columnWidth: [16, 12, 12] /*in chars*/ })
+	     , columnWidth: [6, 12, 12] /*in chars*/ })
 	screen.append(askswindow);
 	screen.append(bidswindow);
 // Quit on Escape, q, or Control-C.
